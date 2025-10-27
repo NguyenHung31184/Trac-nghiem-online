@@ -1,0 +1,7 @@
+{
+  "name": "Nền tảng thi trực tuyến ProctorFree",
+  "description": "Một hệ thống thi trực tuyến được thiết kế dựa trên kiến trúc hiệu quả về chi phí sử dụng Vercel và các dịch vụ Miễn phí của Google. Nó bao gồm các tính năng như ngân hàng câu hỏi, bài thi tính giờ và giám sát không qua video như phát hiện chuyển tab và nhận dạng ảnh định kỳ.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
