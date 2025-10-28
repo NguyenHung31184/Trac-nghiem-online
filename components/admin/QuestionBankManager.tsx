@@ -1,47 +1,48 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-// FIX: Import QuestionWithExamDetails and correct associated types.
-import type { QuestionWithExamDetails } from '../../types';
-// FIX: Replaced missing 'getAllQuestions' with 'getAdminDashboardData'.
-import { getAdminDashboardData, deleteQuestion } from '../../services/examService';
+import { getFirestore, collection, getDocs, deleteDoc, doc } from 'firebase/firestore';
+import type { Question } from '../../types';
 import { LoadingSpinner } from '../icons/LoadingSpinner';
 import { PlusCircleIcon } from '../icons/PlusCircleIcon';
 import { PencilIcon } from '../icons/PencilIcon';
 import { TrashIcon } from '../icons/TrashIcon';
+import { CloudDownloadIcon } from '../icons/CloudDownloadIcon';
 import QuestionFormModal from './QuestionFormModal';
 import Pagination from './Pagination';
-import { CloudDownloadIcon } from '../icons/CloudDownloadIcon';
-import { convertToDirectGoogleDriveLink } from '../../utils/imageUtils';
 import ImageModal from '../ImageModal';
+import CsvImporter from './CsvImporter'; // Import the new component
+import { convertToDirectGoogleDriveLink } from '../../utils/imageUtils';
 
-const ITEMS_PER_PAGE = 5;
+const ITEMS_PER_PAGE = 10;
 
 const QuestionBankManager: React.FC = () => {
-  // FIX: Updated state to use the more specific QuestionWithExamDetails type.
-  const [questions, setQuestions] = useState<QuestionWithExamDetails[]>([]);
+  const [questions, setQuestions] = useState<Question[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
-  // FIX: Updated state to use the more specific QuestionWithExamDetails type.
-  const [editingQuestion, setEditingQuestion] = useState<QuestionWithExamDetails | null>(null);
+  const [editingQuestion, setEditingQuestion] = useState<Question | null>(null);
   const [filterTopic, setFilterTopic] = useState<string>('');
   const [currentPage, setCurrentPage] = useState(1);
-  const [isSyncing, setIsSyncing] = useState(false);
-  const [syncMessage, setSyncMessage] = useState('');
+
+  // New states for importer
+  const [showImporter, setShowImporter] = useState(false);
+  const [importMessage, setImportMessage] = useState('');
 
   // State for image modal
   const [isImageModalOpen, setIsImageModalOpen] = useState(false);
   const [selectedImageUrl, setSelectedImageUrl] = useState('');
 
-
   const fetchQuestions = useCallback(async () => {
     setIsLoading(true);
     setError('');
     try {
-      const data = await getAdminDashboardData();
-      setQuestions(data.questions);
+      const db = getFirestore();
+      const questionsCol = collection(db, 'questionBank');
+      const questionSnapshot = await getDocs(questionsCol);
+      const questionList = questionSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }) as Question);
+      setQuestions(questionList);
     } catch (err: any) {
-        console.error("Failed to fetch questions", err);
-        setError('Không thể tải ngân hàng câu hỏi. Vui lòng kiểm tra kết nối mạng và thử lại.');
+        console.error("Failed to fetch questions from Firestore", err);
+        setError('Không thể tải ngân hàng câu hỏi từ cơ sở dữ liệu. Vui lòng thử lại.');
     } finally {
         setIsLoading(false);
     }
@@ -49,15 +50,14 @@ const QuestionBankManager: React.FC = () => {
 
   useEffect(() => {
     fetchQuestions();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [fetchQuestions]);
   
   useEffect(() => {
-    setCurrentPage(1); // Reset page when filter changes
+    setCurrentPage(1);
   }, [filterTopic]);
 
   const topics = useMemo(() => {
-    const allTopics = questions.map(q => q.topic);
+    const allTopics = questions.map(q => q.topic).filter(Boolean);
     return [...new Set(allTopics)];
   }, [questions]);
 
@@ -78,20 +78,20 @@ const QuestionBankManager: React.FC = () => {
     setIsModalOpen(true);
   };
 
-  // FIX: Updated parameter type to match the state.
-  const handleEdit = (question: QuestionWithExamDetails) => {
+  const handleEdit = (question: Question) => {
     setEditingQuestion(question);
     setIsModalOpen(true);
   };
 
   const handleDelete = async (questionId: string) => {
-    if (window.confirm('Bạn có chắc chắn muốn xóa câu hỏi này không?')) {
+    if (window.confirm('Bạn có chắc chắn muốn xóa câu hỏi này khỏi ngân hàng câu hỏi không?')) {
       try {
-        await deleteQuestion(questionId);
+        const db = getFirestore();
+        await deleteDoc(doc(db, 'questionBank', questionId));
         await fetchQuestions(); // Refresh list
       } catch (error) {
         console.error('Failed to delete question:', error);
-        alert('Không thể xóa câu hỏi. Vui lòng thử lại.');
+        setError('Không thể xóa câu hỏi. Vui lòng thử lại.');
       }
     }
   };
@@ -106,22 +106,15 @@ const QuestionBankManager: React.FC = () => {
     fetchQuestions(); // Refresh data after save
   }
 
-  const handleSync = async () => {
-    setIsSyncing(true);
-    setSyncMessage('');
-    setError('');
-    try {
-      // Re-fetch all data from the source (Google Sheet via GAS)
-      const data = await getAdminDashboardData();
-      setQuestions(data.questions);
-      setSyncMessage(`Đồng bộ thành công lúc ${new Date().toLocaleTimeString()}`);
-    } catch (err) {
-      console.error('Lỗi khi đồng bộ:', err);
-      setSyncMessage('');
-      setError('Đồng bộ thất bại. Vui lòng kiểm tra kết nối mạng và thử lại.');
-    } finally {
-      setIsSyncing(false);
-    }
+  const handleImportComplete = () => {
+    setImportMessage('Nhập dữ liệu thành công! Đang làm mới danh sách câu hỏi...');
+    setShowImporter(false);
+    fetchQuestions();
+    setTimeout(() => setImportMessage(''), 3000);
+  };
+
+  const handleImportError = (errorMessage: string) => {
+    setError(`Lỗi khi nhập: ${errorMessage}`);
   };
 
   const handleOpenImageModal = (imageUrl: string) => {
@@ -135,12 +128,11 @@ const QuestionBankManager: React.FC = () => {
         <h3 className="text-2xl font-bold text-gray-900">Ngân hàng câu hỏi</h3>
         <div className="flex gap-2">
             <button
-              onClick={handleSync}
-              disabled={isSyncing || isLoading}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 px-4 rounded-lg flex items-center transition-colors disabled:bg-emerald-300"
+              onClick={() => setShowImporter(!showImporter)}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 px-4 rounded-lg flex items-center transition-colors"
             >
-              {isSyncing ? <LoadingSpinner/> : <CloudDownloadIcon />}
-              <span className="ml-2">{isSyncing ? 'Đang đồng bộ...' : 'Đồng bộ từ Sheet'}</span>
+              <CloudDownloadIcon />
+              <span className="ml-2">{showImporter ? 'Đóng Nhập liệu' : 'Nhập từ CSV'}</span>
             </button>
             <button
               onClick={handleAddNew}
@@ -151,10 +143,13 @@ const QuestionBankManager: React.FC = () => {
             </button>
         </div>
       </div>
-      {syncMessage && <p className="text-sm text-emerald-700 mb-4">{syncMessage}</p>}
+      {importMessage && <p className="text-sm text-emerald-700 mb-4">{importMessage}</p>}
 
+      {showImporter && (
+          <CsvImporter onImportComplete={handleImportComplete} onImportError={handleImportError} />
+      )}
 
-      <div className="mb-4">
+      <div className="mb-4 mt-6">
         <label htmlFor="topic-filter" className="block text-sm font-medium text-gray-700">Lọc theo chủ đề</label>
         <select 
             id="topic-filter"
@@ -178,13 +173,13 @@ const QuestionBankManager: React.FC = () => {
         <>
             <div className="space-y-4">
             {paginatedQuestions.map((q) => {
-                const directImageUrl = convertToDirectGoogleDriveLink(q.imageUrl);
+                const directImageUrl = q.imageUrl ? convertToDirectGoogleDriveLink(q.imageUrl) : '';
                 return (
-                <div key={q.id} className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                <div key={q.id} className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
                 <div className="flex justify-between items-start">
                     <div>
                         <p className="text-xs font-semibold text-indigo-600 bg-indigo-100 inline-block px-2 py-1 rounded-full mb-2">{q.topic}</p>
-                        <div className="text-gray-900 prose prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: q.stem }} />
+                        <p className="text-gray-900 font-medium">{q.questionText}</p>
                          {directImageUrl && (
                             <button
                                 type="button"
@@ -205,22 +200,12 @@ const QuestionBankManager: React.FC = () => {
                     </div>
                 </div>
                 <ul className="mt-3 space-y-2">
-                    {q.options.map(opt => (
-                    <li key={opt.id} className={`text-sm pl-4 py-1 rounded ${opt.id === q.answer_key ? 'bg-emerald-100 text-emerald-800 border-l-4 border-emerald-500 font-semibold' : 'text-gray-700'}`}>
-                        {opt.text}
+                    {q.options.map((opt, index) => (
+                    <li key={index} className={`text-sm pl-4 py-1 rounded ${opt === q.correctAnswer ? 'bg-emerald-100 text-emerald-800 border-l-4 border-emerald-500 font-semibold' : 'text-gray-700'}`}>
+                        {opt}
                     </li>
                     ))}
                 </ul>
-                {q.usedInExams && q.usedInExams.length > 0 && (
-                    <div className="mt-3 pt-3 border-t border-gray-200">
-                        <p className="text-xs font-semibold text-gray-600">Được sử dụng trong bài thi:</p>
-                        <div className="flex flex-wrap gap-2 mt-1">
-                            {q.usedInExams.map(ex => (
-                                <span key={ex.examId} className="text-xs bg-gray-200 text-gray-800 px-2 py-1 rounded-full">{ex.examTitle}</span>
-                            ))}
-                        </div>
-                    </div>
-                )}
                 </div>
             )})}
             </div>
@@ -245,7 +230,6 @@ const QuestionBankManager: React.FC = () => {
             isOpen={isModalOpen}
             onClose={handleModalClose}
             onSave={handleModalSave}
-            // FIX: Removed unsafe type cast. The 'editingQuestion' state now has the correct type.
             initialQuestion={editingQuestion}
         />
       )}
