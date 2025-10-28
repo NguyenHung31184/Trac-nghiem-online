@@ -2,8 +2,7 @@ export interface User {
   id: string;
   name: string;
   email: string;
-  role: 'student' | 'teacher' | 'admin' | 'proctor';
-  classIds?: string[]; // Gán học viên vào một hoặc nhiều lớp
+  roles: string[]; // ví dụ: ['admin', 'teacher', 'student']
 }
 
 export interface Class {
@@ -31,11 +30,29 @@ export interface Exam {
   duration: number; // tính bằng phút
   pass_threshold: number; // ví dụ: 0.7 cho 70%
   totalQuestions: number; // Tổng số câu hỏi sẽ được lấy từ QBank
-  questionsSnapshotUrl?: string; // URL đến file JSON câu hỏi tĩnh
+  variants?: number; // Số biến thể mong muốn sinh ra cho mỗi lần đồng bộ
+  questionsSnapshotUrl?: string; // URL đến file JSON câu hỏi tĩnh (kiến trúc cũ)
   // Blueprint được giữ lại cho Admin UI để xác định cách tạo bài thi từ QBank
   blueprint?: { topic: string; difficulty: string; count: number }[] | string;
+  // Các thuộc tính đồng bộ biến thể được Cloud Function cập nhật
+  snapshotVariantIds?: string[];
+  isSynced?: boolean;
+  lastSyncedAt?: { seconds: number; nanoseconds: number } | null;
+  createdAt?: { seconds: number; nanoseconds: number } | null;
+  updatedAt?: { seconds: number; nanoseconds: number } | null;
   // FIX: Add optional questions property for exam snapshots.
   questions?: Question[];
+}
+
+export interface ExamVariantSnapshot {
+  id: string;
+  examId: string;
+  examTitle: string;
+  variant: number;
+  createdAt?: { seconds: number; nanoseconds: number } | null;
+  duration?: number;
+  totalPoints: number;
+  questions: Question[];
 }
 
 export interface ExamWindow {
@@ -63,22 +80,5 @@ export interface Attempt {
 
 export interface AuditLog {
   id:string;
-  attemptId: string;
-  event: 'focus_lost' | 'visibility_hidden' | 'copy_paste_blocked' | 'photo_taken';
-  timestamp: number;
-  metadata?: { [key: string]: any };
-}
-
-export interface AttemptWithDetails extends Attempt {
-    userName: string;
-    examTitle: string;
-    className: string;
-}
-
-// Giữ lại để tương thích với các component admin
-export interface QuestionWithExamDetails extends Question {
-    examId: string;
-    examTitle: string;
-    // Được thêm vào từ Code.gs để hiển thị câu hỏi này được dùng ở đâu
-    usedInExams?: { examId: string; examTitle: string }[];
+  // Thêm các thuộc tính khác của AuditLog nếu cần
 }

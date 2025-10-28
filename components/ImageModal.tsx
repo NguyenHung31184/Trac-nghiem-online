@@ -27,10 +27,11 @@ const ImageModal: React.FC<ImageModalProps> = ({ isOpen, onClose, imageUrl }) =>
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
           </svg>
         </button>
-        <img 
-          src={imageUrl} 
-          alt="Hình ảnh xem trước" 
-          className="max-w-full max-h-[85vh] object-contain rounded-lg" 
+        <img
+          src={imageUrl}
+          alt="Hình ảnh xem trước"
+          className="max-w-full max-h-[85vh] object-contain rounded-lg"
+          referrerPolicy="no-referrer" // <--- Đây là dòng đã được thêm vào
         />
       </div>
     </div>

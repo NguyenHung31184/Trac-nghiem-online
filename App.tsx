@@ -196,10 +196,12 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="bg-gray-100 min-h-screen font-sans text-gray-800">
+    <div className="bg-gray-50 min-h-screen font-sans text-gray-800">
       {user && <Header user={user} onLogout={handleLogout} />}
-      <main className="container mx-auto p-4 sm:p-6 lg:p-8">
-        {renderContent()}
+      <main className="container mx-auto px-4 py-8 sm:px-6 lg:px-8">
+        <div className="w-full">
+          {renderContent()}
+        </div>
       </main>
     </div>
   );
