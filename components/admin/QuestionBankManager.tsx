@@ -5,11 +5,11 @@ import { LoadingSpinner } from '../icons/LoadingSpinner';
 import { PlusCircleIcon } from '../icons/PlusCircleIcon';
 import { PencilIcon } from '../icons/PencilIcon';
 import { TrashIcon } from '../icons/TrashIcon';
-import { CloudDownloadIcon } from '../icons/CloudDownloadIcon';
+import { CloudUploadIcon } from '../icons/CloudUploadIcon';
 import QuestionFormModal from './QuestionFormModal';
 import Pagination from './Pagination';
 import ImageModal from '../ImageModal';
-import CsvImporter from './CsvImporter'; // Import the new component
+import CsvImporter from './CsvImporter'; // The upgraded component
 import { convertToDirectGoogleDriveLink } from '../../utils/imageUtils';
 
 const ITEMS_PER_PAGE = 10;
@@ -23,9 +23,9 @@ const QuestionBankManager: React.FC = () => {
   const [filterTopic, setFilterTopic] = useState<string>('');
   const [currentPage, setCurrentPage] = useState(1);
 
-  // New states for importer
+  // State for importer visibility and progress
   const [showImporter, setShowImporter] = useState(false);
-  const [importMessage, setImportMessage] = useState('');
+  const [importStatus, setImportStatus] = useState({ message: '', type: '' }); // type can be 'progress', 'success', or 'error'
 
   // State for image modal
   const [isImageModalOpen, setIsImageModalOpen] = useState(false);
@@ -106,21 +106,36 @@ const QuestionBankManager: React.FC = () => {
     fetchQuestions(); // Refresh data after save
   }
 
-  const handleImportComplete = () => {
-    setImportMessage('Nhập dữ liệu thành công! Đang làm mới danh sách câu hỏi...');
-    setShowImporter(false);
-    fetchQuestions();
-    setTimeout(() => setImportMessage(''), 3000);
+  // --- New Handlers for the upgraded Importer ---
+  const handleImportProgress = (message: string) => {
+    setImportStatus({ message, type: 'progress' });
+  };
+
+  const handleImportComplete = (totalImported: number) => {
+    setImportStatus({ message: `Nhập thành công! Đã xử lý ${totalImported} câu hỏi. Đang làm mới danh sách...`, type: 'success' });
+    fetchQuestions(); // Refresh the list
+    // Hide the success message after 5 seconds
+    setTimeout(() => setImportStatus({ message: '', type: '' }), 5000);
   };
 
   const handleImportError = (errorMessage: string) => {
-    setError(`Lỗi khi nhập: ${errorMessage}`);
+    setImportStatus({ message: `Lỗi khi nhập: ${errorMessage}`, type: 'error' });
   };
+  // ----------------------------------------------
 
   const handleOpenImageModal = (imageUrl: string) => {
     setSelectedImageUrl(imageUrl);
     setIsImageModalOpen(true);
   };
+
+  const getStatusColor = () => {
+      switch(importStatus.type) {
+          case 'success': return 'text-emerald-700 bg-emerald-50 border-emerald-200';
+          case 'error': return 'text-rose-700 bg-rose-50 border-rose-200';
+          case 'progress': return 'text-sky-700 bg-sky-50 border-sky-200';
+          default: return 'hidden';
+      }
+  }
 
   return (
     <div>
@@ -131,7 +146,7 @@ const QuestionBankManager: React.FC = () => {
               onClick={() => setShowImporter(!showImporter)}
               className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 px-4 rounded-lg flex items-center transition-colors"
             >
-              <CloudDownloadIcon />
+              <CloudUploadIcon />
               <span className="ml-2">{showImporter ? 'Đóng Nhập liệu' : 'Nhập từ CSV'}</span>
             </button>
             <button
@@ -143,10 +158,19 @@ const QuestionBankManager: React.FC = () => {
             </button>
         </div>
       </div>
-      {importMessage && <p className="text-sm text-emerald-700 mb-4">{importMessage}</p>}
+      
+      {importStatus.message && (
+        <div className={`p-3 my-4 border rounded-lg text-sm ${getStatusColor()}`}>
+            {importStatus.message}
+        </div>
+      )}
 
       {showImporter && (
-          <CsvImporter onImportComplete={handleImportComplete} onImportError={handleImportError} />
+          <CsvImporter 
+            onProgress={handleImportProgress}
+            onImportComplete={handleImportComplete} 
+            onImportError={handleImportError} 
+          />
       )}
 
       <div className="mb-4 mt-6">

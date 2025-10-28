@@ -1,105 +1,134 @@
-
 import React, { useState } from 'react';
 import { getFirestore, collection, writeBatch, doc } from 'firebase/firestore';
+// To enable Excel import, you must first install the 'xlsx' library:
+// npm install xlsx
+import * as XLSX from 'xlsx';
 
 interface CsvImporterProps {
-  onImportComplete: () => void;
+  onImportComplete: (totalImported: number) => void;
   onImportError: (error: string) => void;
+  onProgress: (message: string) => void;
 }
 
-const CsvImporter: React.FC<CsvImporterProps> = ({ onImportComplete, onImportError }) => {
-  const [csvData, setCsvData] = useState('');
+const BATCH_SIZE = 400;
+
+// The old `parseCsvRow` function is removed as `xlsx` library handles parsing.
+
+const CsvImporter: React.FC<CsvImporterProps> = ({ onImportComplete, onImportError, onProgress }) => {
+  const [file, setFile] = useState<File | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (event.target.files && event.target.files.length > 0) {
+      setFile(event.target.files[0]);
+    } else {
+      setFile(null);
+    }
+  };
+
   const handleImport = async () => {
-    if (!csvData.trim()) {
-      onImportError('Dữ liệu CSV không được để trống.');
+    if (!file) {
+      onImportError('Vui lòng chọn một tệp Excel (.xlsx) hoặc CSV (.csv) để nhập.');
       return;
     }
 
     setIsLoading(true);
+    onProgress('Bắt đầu quá trình nhập... Vui lòng không đóng tab này.');
+
     try {
       const db = getFirestore();
-      const batch = writeBatch(db);
+      const arrayBuffer = await file.arrayBuffer();
+      const workbook = XLSX.read(arrayBuffer);
+      const worksheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[worksheetName];
       
-      const lines = csvData.trim().split('\n');
-      const headers = lines[0].split(',').map(h => h.trim());
-      // Find header indices
-      const idIndex = headers.indexOf('ID Câu hỏi');
-      const questionIndex = headers.indexOf('Câu hỏi');
-      const optionAIndex = headers.indexOf('Đáp án A');
-      const optionBIndex = headers.indexOf('Đáp án B');
-      const optionCIndex = headers.indexOf('Đáp án C');
-      const optionDIndex = headers.indexOf('Đáp án D');
-      const correctIndex = headers.indexOf('Đáp án đúng (chép lại nội dung)');
-      const pointsIndex = headers.indexOf('Points');
-      const topicIndex = headers.indexOf('Chủ đề/Lớp Nghề');
-      const difficultyIndex = headers.indexOf('Bậc/Độ khó');
-      const imageIndex = headers.indexOf('Link ảnh minh họa (nếu có)');
+      const data: any[] = XLSX.utils.sheet_to_json(worksheet);
 
-      if (idIndex === -1 || questionIndex === -1 || correctIndex === -1) {
-          throw new Error('Các cột tiêu đề bắt buộc (ID Câu hỏi, Câu hỏi, Đáp án đúng) không được tìm thấy.');
+      if (data.length === 0) {
+        throw new Error("Tệp không có dữ liệu hoặc không đúng định dạng. Hãy chắc chắn dòng đầu tiên là dòng tiêu đề.");
       }
 
-      // Start from the second line
-      for (let i = 1; i < lines.length; i++) {
-        const data = lines[i].split(',');
+      let totalImported = 0;
 
-        const questionId = data[idIndex]?.trim();
-        if (!questionId) continue; // Skip empty rows
+      for (let i = 0; i < data.length; i += BATCH_SIZE) {
+        const chunk = data.slice(i, i + BATCH_SIZE);
+        const batch = writeBatch(db);
+        
+        onProgress(`Đang xử lý: ${i + chunk.length} / ${data.length} câu hỏi...`);
 
-        const options = [
-            data[optionAIndex]?.trim(),
-            data[optionBIndex]?.trim(),
-            data[optionCIndex]?.trim(),
-            data[optionDIndex]?.trim()
-        ].filter(Boolean); // Filter out any empty options
+        for (const row of chunk) {
+            const id = row['ID Câu hỏi'] || row['ID'];
+            const questionText = row['Câu hỏi'] || row['Câu hỏi (Nội dung chính)'];
+            const correctText = row['Đáp án đúng (chép lại nội dung)'] || row['Correct Text'];
+            const topic = row['Chủ đề/Lớp/Ngành'] || row['Topic'];
 
-        const questionData = {
-          id: questionId,
-          questionText: data[questionIndex]?.trim() || '',
-          options: options,
-          correctAnswer: data[correctIndex]?.trim() || '',
-          points: parseInt(data[pointsIndex]?.trim(), 10) || 1,
-          topic: data[topicIndex]?.trim() || '',
-          difficulty: data[difficultyIndex]?.trim() || 'Trung bình',
-          imageUrl: data[imageIndex]?.trim() || '',
-        };
+            if (!id || !questionText || !correctText) {
+              console.warn("Bỏ qua dòng do thiếu các trường bắt buộc (ID, Câu hỏi, Đáp án đúng):", row);
+              continue;
+            }
 
-        const questionRef = doc(db, 'questionBank', questionId);
-        batch.set(questionRef, questionData);
+            const options = [
+                row['Đáp án A'], row['A'],
+                row['Đáp án B'], row['B'],
+                row['Đáp án C'], row['C'],
+                row['Đáp án D'], row['D'],
+            ].filter(opt => opt != null && String(opt).trim() !== '').map(String);
+            
+            // Remove duplicates from options if alternate headers were matched
+            const uniqueOptions = [...new Set(options)];
+
+            const questionData = {
+                id: String(id).trim(),
+                questionText: String(questionText).trim(),
+                options: uniqueOptions,
+                correctAnswer: String(correctText).trim(),
+                points: parseInt(row['Points'] || row['Điểm'], 10) || 1,
+                topic: String(topic).trim(),
+                difficulty: String(row['Bậc/Độ khó'] || row['Bậc'] || row['Difficulty'] || 'Trung bình').trim(),
+                imageUrl: String(row['Link ảnh minh họa (nếu có)'] || row['Image Link'] || '').trim(),
+            };
+
+            const questionRef = doc(db, 'questionBank', questionData.id);
+            batch.set(questionRef, questionData);
+        }
+
+        await batch.commit();
+        totalImported += chunk.length;
       }
 
-      await batch.commit();
-      onImportComplete();
+      onImportComplete(totalImported);
+
     } catch (error: any) {
-      console.error("Lỗi khi nhập CSV:", error);
+      console.error("Lỗi khi nhập tệp:", error);
       onImportError(`Đã xảy ra lỗi: ${error.message}`);
     } finally {
       setIsLoading(false);
-      setCsvData('');
+      const fileInput = document.getElementById('csv-file-input') as HTMLInputElement;
+      if(fileInput) fileInput.value = '';
+      setFile(null);
     }
   };
 
   return (
     <div className="p-4 bg-gray-100 rounded-lg shadow-inner mt-6">
-      <h3 className="text-lg font-semibold mb-2 text-gray-700">Nhập Ngân hàng câu hỏi từ CSV</h3>
-      <p className="text-sm text-gray-600 mb-4">
-        1. Mở file Google Sheet của bạn. <br/>
-        2. Chọn <strong>Tệp &gt; Tải xuống &gt; Giá trị được phân tách bằng dấu phẩy (.csv)</strong>.<br/>
-        3. Mở file .csv vừa tải, sao chép toàn bộ nội dung và dán vào ô dưới đây.
+      <h3 className="text-lg font-semibold mb-2 text-gray-700">Nhập từ tệp Excel / CSV</h3>
+       <p className="text-sm text-gray-600 mb-4">
+        1. Chuẩn bị tệp Excel (<strong>.xlsx</strong>) hoặc CSV (<strong>.csv</strong>). Dòng đầu tiên phải là dòng tiêu đề.<br/>
+        2. Nhấp vào nút bên dưới để chọn và tải lên tệp của bạn.
       </p>
-      <textarea
-        className="w-full h-48 p-2 border rounded-md focus:ring-2 focus:ring-blue-500"
-        placeholder="Dán nội dung CSV vào đây..."
-        value={csvData}
-        onChange={(e) => setCsvData(e.target.value)}
+
+      <input
+        id="csv-file-input"
+        type="file"
+        accept=".xlsx, .xls, .csv"
+        onChange={handleFileChange}
         disabled={isLoading}
-      />
+        className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-violet-50 file:text-violet-700 hover:file:bg-violet-100"/>
+
       <button
         onClick={handleImport}
-        disabled={isLoading}
-        className="mt-4 px-6 py-2 bg-blue-600 text-white font-semibold rounded-md hover:bg-blue-700 disabled:bg-gray-400"
+        disabled={isLoading || !file}
+        className="mt-4 px-6 py-2 bg-blue-600 text-white font-semibold rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
       >
         {isLoading ? 'Đang xử lý...' : 'Bắt đầu Nhập'}
       </button>

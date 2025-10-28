@@ -137,10 +137,13 @@ const ExamManager: React.FC = () => {
                     </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
-                    {exams.map((exam) => (
+                    {exams.map((exam) => {
+                        const isTrulySynced = !!(exam.isSynced && Array.isArray(exam.snapshotVariantIds) && exam.snapshotVariantIds.length > 0);
+                        
+                        return (
                         <tr key={exam.id}>
                             <td className="px-6 py-4 whitespace-nowrap">
-                                {exam.isSynced ? (
+                                {isTrulySynced ? (
                                     <span className="flex items-center text-sm font-medium text-emerald-600">
                                         <CheckCircleIcon className="w-5 h-5 mr-1" /> Đã đồng bộ
                                     </span>
@@ -155,7 +158,7 @@ const ExamManager: React.FC = () => {
                                 <div className="text-xs text-gray-500">ID: {exam.id}</div>
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                {exam.variants}
+                                {isTrulySynced ? exam.snapshotVariantIds.length : '0'} / {exam.variants}
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                                 <div className="flex items-center space-x-2">
@@ -169,13 +172,14 @@ const ExamManager: React.FC = () => {
                                     </button>
                                     <button onClick={() => handleEdit(exam)} className="p-2 text-gray-500 hover:text-indigo-600 hover:bg-gray-100 rounded-full transition-colors" title="Sửa"><PencilIcon/></button>
                                     <button onClick={() => handleDelete(exam.id)} className="p-2 text-gray-500 hover:text-rose-600 hover:bg-gray-100 rounded-full transition-colors" title="Xóa"><TrashIcon/></button>
-                                    {exam.isSynced && (
+                                    {isTrulySynced && (
                                         <button onClick={() => handleViewVariants(exam)} className="p-2 text-gray-500 hover:text-emerald-600 hover:bg-gray-100 rounded-full transition-colors" title="Xem các biến thể"><ViewListIcon/></button>
                                     )}
                                 </div>
                             </td>
                         </tr>
-                        ))}
+                        );
+                    })}
                     </tbody>
                 </table>
             </div>
