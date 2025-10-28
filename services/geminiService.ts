@@ -1,6 +1,7 @@
 
 import { GoogleGenAI, Type } from "@google/genai";
 import { marked } from 'marked';
+import sanitizeHtml from 'sanitize-html';
 import type { AuditLog } from '../types';
 
 // IMPORTANT: This key is retrieved from environment variables.
@@ -13,12 +14,19 @@ if (!API_KEY) {
 
 const ai = new GoogleGenAI({ apiKey: API_KEY! });
 
+// Sanitize inputs to prevent prompt injection
+const sanitizeOptions = {
+  allowedTags: [],
+  allowedAttributes: {},
+};
+
 export const generateStudyNotes = async (topics: string[]): Promise<string> => {
   if (!API_KEY) {
       return Promise.resolve("<h3>Khóa API Gemini chưa được định cấu hình</h3><p>Các tính năng AI đã bị tắt. Vui lòng định cấu hình khóa API của bạn để bật chúng.</p>");
   }
 
-  const uniqueTopics = [...new Set(topics)];
+  const sanitizedTopics = topics.map(topic => sanitizeHtml(topic, sanitizeOptions));
+  const uniqueTopics = [...new Set(sanitizedTopics)];
   const prompt = `
     Tôi vừa hoàn thành một bài kiểm tra và cần trợ giúp ôn tập các chủ đề tôi đã làm sai. 
     Các chủ đề đó là: ${uniqueTopics.join(', ')}.
@@ -39,8 +47,9 @@ export const generateStudyNotes = async (topics: string[]): Promise<string> => {
     });
     
     const markdownText = response.text;
-    const htmlContent = await marked.parse(markdownText, { async: true, gfm: true });
-    return htmlContent;
+    const unsafeHtml = await marked.parse(markdownText, { async: true, gfm: true });
+    // Sanitize the HTML output to prevent XSS
+    return sanitizeHtml(unsafeHtml);
 
   } catch (error) {
     console.error("Gemini API call failed:", error);
@@ -53,7 +62,8 @@ export const generateQuestion = async (topic: string, difficulty: 'easy'|'medium
         throw new Error("Chưa định cấu hình API_KEY.");
     }
     
-    const prompt = `Tạo một câu hỏi trắc nghiệm cho một kỳ thi trực tuyến về chủ đề "${topic}" với độ khó là "${difficulty}". 
+    const sanitizedTopic = sanitizeHtml(topic, sanitizeOptions);
+    const prompt = `Tạo một câu hỏi trắc nghiệm cho một kỳ thi trực tuyến về chủ đề "${sanitizedTopic}" với độ khó là "${difficulty}". 
     Câu hỏi nên có 4 lựa chọn. Đáp án phải là một trong các lựa chọn đó.
     Cung cấp câu trả lời của bạn dưới dạng một đối tượng JSON có cấu trúc sau: 
     { "stem": "Nội dung câu hỏi ở đây...", "options": ["Lựa chọn A", "Lựa chọn B", "Lựa chọn C", "Lựa chọn D"], "answerIndex": 0 }
@@ -83,7 +93,10 @@ export const generateQuestion = async (topic: string, difficulty: 'easy'|'medium
         const parsed = JSON.parse(jsonText);
         
         if (parsed.stem && Array.isArray(parsed.options) && typeof parsed.answerIndex === 'number') {
-            return parsed;
+            // Sanitize the HTML output to prevent XSS
+            const sanitizedStem = sanitizeHtml(parsed.stem);
+            const sanitizedOptions = parsed.options.map((option: string) => sanitizeHtml(option));
+            return { ...parsed, stem: sanitizedStem, options: sanitizedOptions };
         }
         return null;
     } catch(e) {
@@ -101,6 +114,7 @@ export const summarizeAuditLogs = async (logs: AuditLog[]): Promise<string> => {
         return Promise.resolve("<p>Không có hoạt động đáng ngờ nào được ghi lại cho lần thử này.</p>");
     }
 
+    // Audit logs are internally generated, so we can trust them
     const logSummary = logs.map(log => `- Vào lúc ${new Date(log.timestamp).toLocaleTimeString()}, sự kiện '${log.event}' đã xảy ra.`).join('\n');
 
     const prompt = `
@@ -119,8 +133,9 @@ export const summarizeAuditLogs = async (logs: AuditLog[]): Promise<string> => {
         });
         
         const markdownText = response.text;
-        const htmlContent = await marked.parse(markdownText, { async: true, gfm: true });
-        return htmlContent;
+        const unsafeHtml = await marked.parse(markdownText, { async: true, gfm: true });
+        // Sanitize the HTML output to prevent XSS
+        return sanitizeHtml(unsafeHtml);
 
     } catch (error) {
         console.error("Gemini log summarization failed:", error);
