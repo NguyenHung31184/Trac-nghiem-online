@@ -32,11 +32,13 @@ const App: React.FC = () => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
         if (firebaseUser) {
             try {
-                // Người dùng đã đăng nhập, lấy thông tin đầy đủ từ backend
-                const isAdmin = firebaseUser.email === 'admin@example.com';
+                // Lấy token của người dùng để kiểm tra vai trò (custom claims)
+                const idTokenResult = await firebaseUser.getIdTokenResult();
+                const isAdmin = idTokenResult.claims.role === 'admin';
                 
                 let appUser: User;
                 if (isAdmin) {
+                    // Nếu là admin, tạo đối tượng user với vai trò admin
                     appUser = {
                         id: firebaseUser.uid,
                         name: firebaseUser.displayName || firebaseUser.email!,
@@ -44,6 +46,7 @@ const App: React.FC = () => {
                         role: 'admin',
                     };
                 } else {
+                    // Nếu là học sinh, lấy thông tin hồ sơ từ backend (GAS)
                     const profile = await getUserProfile(firebaseUser.email!);
                     appUser = {
                         id: firebaseUser.uid,
@@ -58,7 +61,7 @@ const App: React.FC = () => {
             } catch (error) {
                 console.error("Không thể lấy hồ sơ người dùng:", error);
                 // Có thể người dùng đã xác thực nhưng chưa có trong danh sách học viên
-                alert("Tài khoản của bạn chưa được gán vào lớp học nào. Vui lòng liên hệ quản trị viên.");
+                alert("Tài khoản của bạn chưa được gán vào lớp học nào hoặc có lỗi khi xác thực. Vui lòng liên hệ quản trị viên.");
                 await auth.signOut(); // Đăng xuất người dùng
             }
         } else {

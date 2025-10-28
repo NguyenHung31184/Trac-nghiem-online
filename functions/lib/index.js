@@ -23,10 +23,78 @@ var __importStar = (this && this.__importStar) || function (mod) {
     return result;
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.generateExamVariantsHttps = void 0;
+exports.generateExamVariantsHttps = exports.bulkCreateUsers = void 0;
 const functions = __importStar(require("firebase-functions"));
 const admin = __importStar(require("firebase-admin"));
 admin.initializeApp();
+exports.bulkCreateUsers = functions.region("us-central1").https.onCall(async (data, context) => {
+    // 1. Authorization Check: Ensure the user is an admin
+    if (!context.auth || context.auth.token.role !== 'admin') {
+        throw new functions.https.HttpsError('permission-denied', 'Chỉ quản trị viên mới có thể thực hiện chức năng này.');
+    }
+    // 2. Input Validation
+    const students = data.students;
+    if (!Array.isArray(students) || students.length === 0) {
+        throw new functions.https.HttpsError('invalid-argument', 'Dữ liệu đầu vào phải là một mảng học sinh và không được rỗng.');
+    }
+    const results = [];
+    const db = admin.firestore();
+    for (const student of students) {
+        const { email, fullName, classId } = student;
+        // Validate each student object
+        if (!email || !fullName || !classId) {
+            results.push({
+                email: email || 'N/A',
+                success: false,
+                message: 'Dữ liệu không hợp lệ (thiếu email, họ tên hoặc mã lớp).',
+            });
+            continue; // Skip to the next student
+        }
+        try {
+            // 3. Create user in Firebase Authentication
+            const userRecord = await admin.auth().createUser({
+                email: email,
+                password: email,
+                displayName: fullName,
+            });
+            // 4. Create user profile in Firestore 'students' collection
+            await db.collection('students').doc(userRecord.uid).set({
+                email: email,
+                name: fullName,
+                role: 'student',
+                classIds: [classId],
+                createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            });
+            // 5. Set custom claim for role-based access control
+            await admin.auth().setCustomUserClaims(userRecord.uid, { role: 'student' });
+            results.push({
+                email: email,
+                success: true,
+                message: 'Tạo tài khoản thành công.',
+            });
+        }
+        catch (error) {
+            let message = 'Lỗi không xác định.';
+            if (error.code === 'auth/email-already-exists') {
+                message = 'Email đã tồn tại.';
+            }
+            else if (error.code === 'auth/invalid-email') {
+                message = 'Email không hợp lệ.';
+            }
+            else {
+                console.error(`Lỗi khi tạo tài khoản cho ${email}:`, error);
+                message = error.message;
+            }
+            results.push({
+                email: email,
+                success: false,
+                message: message,
+            });
+        }
+    }
+    // 6. Return the detailed results to the client
+    return { results };
+});
 function shuffle(array) {
     let currentIndex = array.length, randomIndex;
     while (currentIndex !== 0) {
@@ -36,8 +104,6 @@ function shuffle(array) {
     }
     return array;
 }
-// *** DEFINITIVE FIX: Explicitly set the region to us-central1 ***
-// This ensures the function is deployed to the same region the client SDK expects by default, resolving the 404 error.
 exports.generateExamVariantsHttps = functions.region("us-central1").https.onCall(async (data, context) => {
     const examId = data.examId;
     const db = admin.firestore();

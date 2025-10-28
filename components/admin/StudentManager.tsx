@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import type { User, Class } from '../../types';
 import { getAdminDashboardData } from '../../services/examService';
@@ -8,6 +9,7 @@ import { TrashIcon } from '../icons/TrashIcon';
 import ClassFormModal from './ClassFormModal';
 import Pagination from './Pagination';
 import ConfirmationModal from './ConfirmationModal';
+import StudentImporter from './StudentImporter'; // Import the new component
 
 const ITEMS_PER_PAGE = 10;
 
@@ -144,60 +146,66 @@ const StudentManager: React.FC = () => {
           <button className="bg-white hover:bg-gray-50 text-gray-700 border border-gray-300 font-semibold py-2 px-4 rounded-lg text-sm">Xuất CSV</button>
         </div>
         
-        {/* Desktop Table View */}
-        <div className="overflow-x-auto rounded-lg border border-gray-200 hidden md:block">
-          <table className="min-w-full bg-white">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Họ và tên</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Lớp</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200">
-              {paginatedStudents.map((student) => (
-                <tr key={student.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{student.name}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{student.email}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
-                    {(student.classIds && student.classIds.length > 0)
-                        ? student.classIds.map(id => classMap.get(id) || id).join(', ') 
-                        : 'N/A'
-                    }
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        {/* Add the new StudentImporter component here */}
+        <StudentImporter />
         
-        {/* Mobile Card View */}
-        <div className="space-y-3 md:hidden">
-            {paginatedStudents.map((student) => (
-                <div key={student.id} className="bg-white p-4 rounded-lg shadow border border-gray-200">
-                    <p className="font-bold text-gray-900 truncate">{student.name}</p>
-                    <div className="mt-2 pt-2 border-t text-sm space-y-1">
-                      <div className="grid grid-cols-3 gap-2">
-                        <span className="text-gray-500 col-span-1">Email:</span>
-                        <span className="text-gray-800 col-span-2 truncate">{student.email}</span>
-                        <span className="text-gray-500 col-span-1">Lớp:</span>
-                        <span className="text-gray-800 font-medium col-span-2">
-                           {(student.classIds && student.classIds.length > 0)
-                                ? student.classIds.map(id => classMap.get(id) || id).join(', ') 
-                                : 'N/A'
-                           }
-                        </span>
-                      </div>
+        <div className="mt-8"> {/* Add margin top for spacing */}
+            <h4 className="text-xl font-bold text-gray-800 mb-4">Danh sách học viên hiện tại</h4>
+            {/* Desktop Table View */}
+            <div className="overflow-x-auto rounded-lg border border-gray-200 hidden md:block">
+              <table className="min-w-full bg-white">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Họ và tên</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Lớp</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {paginatedStudents.map((student) => (
+                    <tr key={student.id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{student.name}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{student.email}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+                        {(student.classIds && student.classIds.length > 0)
+                            ? student.classIds.map(id => classMap.get(id) || id).join(', ') 
+                            : 'N/A'
+                        }
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            
+            {/* Mobile Card View */}
+            <div className="space-y-3 md:hidden">
+                {paginatedStudents.map((student) => (
+                    <div key={student.id} className="bg-white p-4 rounded-lg shadow border border-gray-200">
+                        <p className="font-bold text-gray-900 truncate">{student.name}</p>
+                        <div className="mt-2 pt-2 border-t text-sm space-y-1">
+                          <div className="grid grid-cols-3 gap-2">
+                            <span className="text-gray-500 col-span-1">Email:</span>
+                            <span className="text-gray-800 col-span-2 truncate">{student.email}</span>
+                            <span className="text-gray-500 col-span-1">Lớp:</span>
+                            <span className="text-gray-800 font-medium col-span-2">
+                               {(student.classIds && student.classIds.length > 0)
+                                    ? student.classIds.map(id => classMap.get(id) || id).join(', ') 
+                                    : 'N/A'
+                               }
+                            </span>
+                          </div>
+                        </div>
                     </div>
-                </div>
-            ))}
-        </div>
+                ))}
+            </div>
 
-        <Pagination
-          currentPage={currentStudentPage}
-          totalPages={totalStudentPages}
-          onPageChange={setCurrentStudentPage}
-        />
+            <Pagination
+              currentPage={currentStudentPage}
+              totalPages={totalStudentPages}
+              onPageChange={setCurrentStudentPage}
+            />
+        </div>
       </div>
 
 

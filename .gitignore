@@ -1,4 +1,5 @@
 
-# Firebase credentials
-.env
+# Firebase service account key
+serviceAccountKey.json
+functions/serviceAccountKey.json
 node_modules
