@@ -45,7 +45,7 @@ const StudentImporter: React.FC = () => {
         .toLowerCase()
         .replace(/[^a-z0-9]/g, '');
 
-      acc[normalizedKey] = String(value).trim();
+        acc[normalizedKey] = String(value);
       return acc;
     }, {});
 
@@ -125,7 +125,7 @@ const StudentImporter: React.FC = () => {
         reader.onload = (e) => {
             Papa.parse(e.target?.result as string, {
                 header: true,
-                skipEmptyLines: true,
+                
                 complete: (result) => processData(result.data),
                 error: (err) => setError(`Lỗi khi đọc file CSV: ${err.message}`)
             });
@@ -137,7 +137,7 @@ const StudentImporter: React.FC = () => {
                 const workbook = XLSX.read(e.target?.result, { type: 'binary' });
                 const sheetName = workbook.SheetNames[0]; // Lấy sheet đầu tiên
                 const worksheet = workbook.Sheets[sheetName];
-                const json = XLSX.utils.sheet_to_json(worksheet);
+                const json = XLSX.utils.sheet_to_json(worksheet, {blankrows: true,defval: " ",  });
                 processData(json);
             } catch (err: any) {
                 setError(`Lỗi khi đọc file Excel: ${err.message}`);
