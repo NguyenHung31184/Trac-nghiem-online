@@ -3,6 +3,7 @@ export interface User {
   name: string;
   email: string;
   roles: string[]; // ví dụ: ['admin', 'teacher', 'student']
+  classIds?: string[];
 }
 
 export interface Class {

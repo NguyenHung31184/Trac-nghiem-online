@@ -23,10 +23,11 @@ var __importStar = (this && this.__importStar) || function (mod) {
     return result;
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.generateExamVariantsHttps = exports.bulkCreateUsers = void 0;
+exports.generateExamVariantsHttps = exports.upsertStudentAccount = exports.bulkCreateUsers = void 0;
 const functions = __importStar(require("firebase-functions"));
 const admin = __importStar(require("firebase-admin"));
 admin.initializeApp();
+const DEFAULT_STUDENT_PASSWORD = '123456';
 exports.bulkCreateUsers = functions.region("us-central1").https.onCall(async (data, context) => {
     // 1. Authorization Check: Ensure the user is an admin
     if (!context.auth || context.auth.token.role !== 'admin') {
@@ -54,7 +55,7 @@ exports.bulkCreateUsers = functions.region("us-central1").https.onCall(async (da
             // 3. Create user in Firebase Authentication
             const userRecord = await admin.auth().createUser({
                 email: email,
-                password: email,
+                password: DEFAULT_STUDENT_PASSWORD,
                 displayName: fullName,
             });
             // 4. Create user profile in Firestore 'students' collection
@@ -94,6 +95,81 @@ exports.bulkCreateUsers = functions.region("us-central1").https.onCall(async (da
     }
     // 6. Return the detailed results to the client
     return { results };
+});
+exports.upsertStudentAccount = functions
+    .region("us-central1")
+    .https.onCall(async (data, context) => {
+    var _a, _b;
+    if (!context.auth || context.auth.token.role !== 'admin') {
+        throw new functions.https.HttpsError('permission-denied', 'Chỉ quản trị viên mới có thể thực hiện chức năng này.');
+    }
+    const payload = data;
+    const email = (_a = payload.email) === null || _a === void 0 ? void 0 : _a.trim().toLowerCase();
+    const fullName = (_b = payload.fullName) === null || _b === void 0 ? void 0 : _b.trim();
+    const classIds = Array.isArray(payload.classIds)
+        ? payload.classIds.map((cls) => String(cls).trim()).filter((cls) => cls.length > 0)
+        : [];
+    const password = typeof payload.password === 'string' && payload.password.trim().length > 0
+        ? payload.password.trim()
+        : undefined;
+    if (!email || !fullName || classIds.length === 0) {
+        throw new functions.https.HttpsError('invalid-argument', 'Vui lòng cung cấp đầy đủ email, họ tên và ít nhất một lớp học.');
+    }
+    const db = admin.firestore();
+    const studentsCollection = db.collection('students');
+    let userRecord;
+    let operation = 'updated';
+    let passwordUpdated = false;
+    try {
+        userRecord = await admin.auth().getUserByEmail(email);
+        const updateRequest = {
+            displayName: fullName,
+        };
+        if (password) {
+            updateRequest.password = password;
+            passwordUpdated = true;
+        }
+        await admin.auth().updateUser(userRecord.uid, updateRequest);
+    }
+    catch (error) {
+        if (error.code === 'auth/user-not-found') {
+            operation = 'created';
+            userRecord = await admin.auth().createUser({
+                email,
+                password: password || DEFAULT_STUDENT_PASSWORD,
+                displayName: fullName,
+            });
+            passwordUpdated = true;
+        }
+        else {
+            throw error;
+        }
+    }
+    await admin.auth().setCustomUserClaims(userRecord.uid, { role: 'student' });
+    const studentDocRef = studentsCollection.doc(userRecord.uid);
+    const now = admin.firestore.FieldValue.serverTimestamp();
+    const studentData = {
+        email,
+        name: fullName,
+        fullName,
+        role: 'student',
+        roles: ['student'],
+        classIds,
+        updatedAt: now,
+    };
+    if (operation === 'created') {
+        studentData.createdAt = now;
+    }
+    await studentDocRef.set(studentData, { merge: true });
+    const message = operation === 'created'
+        ? `Đã tạo tài khoản mới cho ${fullName} (${email}).`
+        : `Đã cập nhật tài khoản của ${fullName} (${email}).`;
+    return {
+        success: true,
+        operation,
+        passwordUpdated,
+        message,
+    };
 });
 function shuffle(array) {
     let currentIndex = array.length, randomIndex;
