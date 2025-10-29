@@ -301,6 +301,7 @@ const StudentManager: React.FC = () => {
                 <thead className="bg-gray-50">
                   <tr>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tên lớp</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mã lớp (Class ID)</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Hành động</th>
                   </tr>
                 </thead>
@@ -308,6 +309,7 @@ const StudentManager: React.FC = () => {
                   {paginatedClasses.map((cls) => (
                     <tr key={cls.id} className="hover:bg-gray-50">
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{cls.name}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 font-mono">{cls.id}</td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 space-x-2">
                           <button onClick={() => handleEditClass(cls)} className="p-2 text-gray-500 hover:text-indigo-600 hover:bg-gray-100 rounded-full transition-colors" title="Sửa lớp học"><PencilIcon/></button>
                           <button onClick={() => handleDeleteClass(cls.id)} className="p-2 text-gray-500 hover:text-rose-600 hover:bg-gray-100 rounded-full transition-colors" title="Xóa lớp học"><TrashIcon/></button>
@@ -321,12 +323,17 @@ const StudentManager: React.FC = () => {
         {/* Mobile Card View */}
         <div className="space-y-3 md:hidden">
             {paginatedClasses.map((cls) => (
-                <div key={cls.id} className="bg-white p-4 rounded-lg shadow border border-gray-200 flex justify-between items-center">
-                    <p className="font-bold text-gray-900">{cls.name}</p>
-                    <div className="space-x-2 flex-shrink-0">
+                <div key={cls.id} className="bg-white p-4 rounded-lg shadow border border-gray-200">
+                  <div className="flex justify-between items-start">
+                    <div className="flex-grow">
+                      <p className="font-bold text-gray-900">{cls.name}</p>
+                      <p className="text-sm text-gray-500 font-mono mt-1">{cls.id}</p>
+                    </div>
+                    <div className="space-x-2 flex-shrink-0 ml-4">
                          <button onClick={() => handleEditClass(cls)} className="p-2 text-gray-500 hover:text-indigo-600 hover:bg-gray-100 rounded-full transition-colors" title="Sửa lớp học"><PencilIcon/></button>
                          <button onClick={() => handleDeleteClass(cls.id)} className="p-2 text-gray-500 hover:text-rose-600 hover:bg-gray-100 rounded-full transition-colors" title="Xóa lớp học"><TrashIcon/></button>
                     </div>
+                  </div>
                 </div>
             ))}
         </div>
