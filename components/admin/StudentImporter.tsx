@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
 import { callCallableWithFallbacks } from '../../services/firebaseFunctionsClient';
+import type { Class } from '../../types';
 import { CloudUploadIcon } from '../icons/CloudUploadIcon';
 import { LoadingSpinner } from '../icons/LoadingSpinner';
 
@@ -17,12 +18,65 @@ interface ProcessResult {
   message: string;
 }
 
-const StudentImporter: React.FC = () => {
+interface StudentImporterProps {
+  classes: Class[];
+}
+
+const StudentImporter: React.FC<StudentImporterProps> = ({ classes }) => {
   const [students, setStudents] = useState<StudentData[]>([]);
   const [fileName, setFileName] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [results, setResults] = useState<ProcessResult[]>([]);
   const [error, setError] = useState('');
+  const [warnings, setWarnings] = useState('');
+
+  const classLookup = useMemo(() => {
+    const map = new Map<string, Class>();
+
+    classes.forEach((cls) => {
+      const idKey = cls.id.trim().toLowerCase();
+      map.set(idKey, cls);
+
+      if (cls.code) {
+        map.set(cls.code.trim().toLowerCase(), cls);
+      }
+
+      const nameKey = cls.name.trim().toLowerCase();
+      map.set(nameKey, cls);
+    });
+
+    return map;
+  }, [classes]);
+
+  const classById = useMemo(() => {
+    const map = new Map<string, Class>();
+    classes.forEach((cls) => {
+      map.set(cls.id, cls);
+    });
+    return map;
+  }, [classes]);
+
+  const formatClassLabel = (id: string) => {
+    const cls = classById.get(id);
+    if (!cls) {
+      return id;
+    }
+    const code = cls.code ? `${cls.code} – ` : '';
+    return `${code}${cls.name}`;
+  };
+
+  const resolveClassId = (raw: string | undefined): Class | null => {
+    if (!raw) {
+      return null;
+    }
+
+    const normalized = raw.trim().toLowerCase();
+    if (!normalized) {
+      return null;
+    }
+
+    return classLookup.get(normalized) ?? null;
+  };
 
   /**
    * Chuẩn hóa tên cột và giá trị từ một hàng dữ liệu để phù hợp với StudentData.
@@ -44,7 +98,7 @@ const StudentImporter: React.FC = () => {
         .toLowerCase()
         .replace(/[^a-z0-9]/g, '');
 
-        acc[normalizedKey] = String(value);
+      acc[normalizedKey] = String(value);
       return acc;
     }, {});
 
@@ -77,32 +131,60 @@ const StudentImporter: React.FC = () => {
    * @param data Mảng các đối tượng dữ liệu thô.
    */
   const processData = (data: any[]) => {
-    // Lọc bỏ các hàng rỗng hoặc không phải đối tượng và chuẩn hóa các hàng còn lại
     const normalizedRows = data
       .filter((row) => row && typeof row === 'object')
       .map((row) => normalizeStudentRow(row as Record<string, unknown>));
 
-    // Lọc chỉ lấy những hàng đã được chuẩn hóa và có đủ 3 trường bắt buộc
-    const validData: StudentData[] = normalizedRows.filter(
-      (row): row is StudentData => Boolean(row.email && row.fullName && row.classId)
-    ) as StudentData[];
+    const completedRows = normalizedRows.filter(
+      (row): row is { email: string; fullName: string; classId: string } =>
+        Boolean(row.email && row.fullName && row.classId)
+    );
+
+    const validData: StudentData[] = [];
+    const missingClassLabels = new Set<string>();
+
+    completedRows.forEach((row) => {
+      const resolvedClass = resolveClassId(row.classId);
+      if (!resolvedClass) {
+        missingClassLabels.add(row.classId.trim());
+        return;
+      }
+
+      validData.push({
+        email: row.email,
+        fullName: row.fullName,
+        classId: resolvedClass.id,
+      });
+    });
 
     setStudents(validData);
+    setResults([]);
 
-    // Xử lý thông báo lỗi dựa trên kết quả xử lý
-    if (validData.length === 0 && data.length > 0) {
+    if (completedRows.length === 0 && normalizedRows.length > 0) {
       setError(
         "File không chứa dữ liệu hợp lệ. Hãy chắc chắn file có các cột 'email', 'fullName', và 'classId' hoặc các tên tương đương."
       );
-      return; // Dừng lại, không cần kiểm tra lỗi khác nếu không có dữ liệu hợp lệ nào
+      setWarnings('');
+      return;
     }
 
-    if (validData.length < normalizedRows.length) {
+    if (completedRows.length < normalizedRows.length) {
       setError('Một số dòng bị bỏ qua do thiếu thông tin email, họ tên hoặc mã lớp.');
-      return; // Dừng lại, không cần kiểm tra lỗi khác nếu đã có lỗi bỏ qua dòng
+    } else {
+      setError('');
     }
 
-    setError(''); // Xóa lỗi nếu mọi thứ đều hợp lệ
+    if (missingClassLabels.size > 0) {
+      if (validData.length === 0) {
+        setError(`Không tìm thấy các lớp: ${Array.from(missingClassLabels).join(', ')}. Không có dữ liệu nào được nhập.`);
+        setWarnings('');
+        return;
+      }
+
+      setWarnings(`Không tìm thấy các lớp: ${Array.from(missingClassLabels).join(', ')}. Các dòng này đã bị bỏ qua.`);
+    } else {
+      setWarnings('');
+    }
   };
 
   /**
@@ -116,35 +198,36 @@ const StudentImporter: React.FC = () => {
       setStudents([]);
       setResults([]);
       setError('');
+      setWarnings('');
 
       const reader = new FileReader();
       const fileExtension = file.name.split('.').pop()?.toLowerCase();
 
       if (fileExtension === 'csv') {
         reader.onload = (e) => {
-            Papa.parse(e.target?.result as string, {
-                header: true,
-                
-                complete: (result) => processData(result.data),
-                error: (err) => setError(`Lỗi khi đọc file CSV: ${err.message}`)
-            });
+          Papa.parse(e.target?.result as string, {
+            header: true,
+
+            complete: (result) => processData(result.data),
+            error: (err) => setError(`Lỗi khi đọc file CSV: ${err.message}`),
+          });
         };
         reader.readAsText(file);
       } else if (fileExtension === 'xlsx' || fileExtension === 'xls') {
         reader.onload = (e) => {
-            try {
-                const workbook = XLSX.read(e.target?.result, { type: 'binary' });
-                const sheetName = workbook.SheetNames[0]; // Lấy sheet đầu tiên
-                const worksheet = workbook.Sheets[sheetName];
-                const json = XLSX.utils.sheet_to_json(worksheet, {blankrows: true,defval: " ",  });
-                processData(json);
-            } catch (err: any) {
-                setError(`Lỗi khi đọc file Excel: ${err.message}`);
-            }
+          try {
+            const workbook = XLSX.read(e.target?.result, { type: 'binary' });
+            const sheetName = workbook.SheetNames[0];
+            const worksheet = workbook.Sheets[sheetName];
+            const json = XLSX.utils.sheet_to_json(worksheet, { blankrows: true, defval: ' ' });
+            processData(json);
+          } catch (err: any) {
+            setError(`Lỗi khi đọc file Excel: ${err.message}`);
+          }
         };
         reader.readAsBinaryString(file);
       } else {
-        setError("Định dạng file không được hỗ trợ. Vui lòng chọn file CSV hoặc Excel (.xlsx, .xls).");
+        setError('Định dạng file không được hỗ trợ. Vui lòng chọn file CSV hoặc Excel (.xlsx, .xls).');
       }
     }
   };
@@ -160,7 +243,6 @@ const StudentImporter: React.FC = () => {
     }
     setIsLoading(true);
     setResults([]);
-    setError('');
 
     try {
       const response = await callCallableWithFallbacks<{ students: StudentData[] }, { results: ProcessResult[] }>(
@@ -169,8 +251,7 @@ const StudentImporter: React.FC = () => {
       );
       setResults(response.results || []);
     } catch (err: any) {
-      console.error("Lỗi khi gọi Cloud Function:", err);
-      // Cải thiện thông báo lỗi cho người dùng
+      console.error('Lỗi khi gọi Cloud Function:', err);
       setError(`Lỗi nghiêm trọng khi thực thi: ${err.message || 'Không thể kết nối đến máy chủ.'}`);
     } finally {
       setIsLoading(false);
@@ -181,16 +262,17 @@ const StudentImporter: React.FC = () => {
     <div className="bg-white p-6 rounded-lg shadow-md mt-4 max-w-4xl mx-auto">
       <h3 className="text-2xl font-bold mb-4 text-gray-800">Nhập Học sinh từ File</h3>
       <p className="mb-6 text-sm text-gray-600 leading-relaxed">
-      Chọn một file <strong>CSV</strong> hoặc <strong>Excel</strong> có chứa thông tin học sinh. File phải có các cột: <strong>email</strong>, <strong>fullName</strong>, và <strong>classId</strong>. Các biến thể tên cột như 'mail', 'name', 'hovaten', 'class', 'malop' cũng được hỗ trợ. Nếu không cung cấp cột <strong>password</strong>, hệ thống sẽ đặt mật khẩu mặc định là <strong>123456</strong>.
+        Chọn một file <strong>CSV</strong> hoặc <strong>Excel</strong> có chứa thông tin học sinh. File phải có các cột:
+        <strong> email</strong>, <strong>fullName</strong>, và <strong>classId</strong>. Các biến thể tên cột như 'mail', 'name',
+        'hovaten', 'class', 'malop' cũng được hỗ trợ. Nếu không cung cấp cột <strong>password</strong>, hệ thống sẽ đặt mật khẩu
+        mặc định là <strong>123456</strong>.
       </p>
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
         <label className="inline-flex w-full sm:w-auto cursor-pointer items-center justify-center gap-2 rounded-lg border-2 border-dashed border-blue-300 bg-white px-4 py-2 text-sm font-semibold text-blue-600 shadow-sm transition hover:border-blue-400 hover:bg-blue-50 hover:text-blue-700">
           <CloudUploadIcon className="h-5 w-5" />
-          <span className="truncate">
-            {fileName || 'Chọn file CSV hoặc Excel'}
-          </span>
-          <input type='file' accept=".csv, .xlsx, .xls" className="hidden" onChange={handleFileChange} />
+          <span className="truncate">{fileName || 'Chọn file CSV hoặc Excel'}</span>
+          <input type="file" accept=".csv, .xlsx, .xls" className="hidden" onChange={handleFileChange} />
         </label>
         <button
           onClick={handleImport}
@@ -202,67 +284,68 @@ const StudentImporter: React.FC = () => {
         </button>
       </div>
 
-      {/* Hiển thị lỗi chung */}
       {error && (
-        <p className="text-red-600 bg-red-100 border border-red-300 p-3 rounded-md mt-4 text-sm font-medium">
-          {error}
-        </p>
-      )}
-      
-      {/* Xem trước dữ liệu */}
-      {students.length > 0 && !isLoading && (
-         <div className="mt-8 p-4 border border-gray-200 rounded-lg bg-gray-50">
-            <h4 className="font-bold text-lg mb-3 text-gray-700">Xem trước dữ liệu ({students.length} học sinh):</h4>
-            <div className="max-h-60 overflow-y-auto mt-2 border border-gray-300 rounded-md shadow-inner">
-                <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-100 sticky top-0"> {/* sticky header */}
-                        <tr>
-                            <th className="px-4 py-2 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Email</th>
-                            <th className="px-4 py-2 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Họ và Tên</th>
-                            <th className="px-4 py-2 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Mã Lớp</th>
-                        </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-100">
-                        {/* Chỉ hiển thị tối đa 10 dòng để xem trước */}
-                        {students.slice(0, 10).map((student, index) => (
-                            <tr key={index} className="hover:bg-gray-50">
-                                <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-800">{student.email}</td>
-                                <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-800">{student.fullName}</td>
-                                <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-800">{student.classId}</td>
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
-                {students.length > 10 && (
-                    <p className="text-center text-sm text-gray-500 p-2 bg-gray-50 border-t border-gray-200">
-                        ... và {students.length - 10} học sinh khác không hiển thị trong bản xem trước.
-                    </p>
-                )}
-            </div>
-         </div>
+        <p className="text-red-600 bg-red-100 border border-red-300 p-3 rounded-md mt-4 text-sm font-medium">{error}</p>
       )}
 
-      {/* Kết quả nhập liệu */}
+      {warnings && !error && (
+        <p className="mt-4 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">{warnings}</p>
+      )}
+
+      {students.length > 0 && !isLoading && (
+        <div className="mt-8 p-4 border border-gray-200 rounded-lg bg-gray-50">
+          <h4 className="font-bold text-lg mb-3 text-gray-700">Xem trước dữ liệu ({students.length} học sinh):</h4>
+          <div className="max-h-60 overflow-y-auto mt-2 border border-gray-300 rounded-md shadow-inner">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-100 sticky top-0">
+                <tr>
+                  <th className="px-4 py-2 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Email</th>
+                  <th className="px-4 py-2 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Họ và Tên</th>
+                  <th className="px-4 py-2 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Mã Lớp</th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-100">
+                {students.slice(0, 10).map((student, index) => (
+                  <tr key={index} className="hover:bg-gray-50">
+                    <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-800">{student.email}</td>
+                    <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-800">{student.fullName}</td>
+                    <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-800">{formatClassLabel(student.classId)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {students.length > 10 && (
+              <p className="text-center text-sm text-gray-500 p-2 bg-gray-50 border-t border-gray-200">
+                ... và {students.length - 10} học sinh khác không hiển thị trong bản xem trước.
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+
       {results.length > 0 && (
         <div className="mt-8 p-4 border border-gray-200 rounded-lg bg-gray-50">
           <h4 className="font-bold text-lg mb-3 text-gray-700">Kết quả nhập liệu:</h4>
           <div className="max-h-60 overflow-y-auto mt-2 border border-gray-300 rounded-md shadow-inner">
             <ul className="divide-y divide-gray-200">
-                {results.map((result, index) => (
-                    <li key={index} className={`p-3 flex flex-col sm:flex-row sm:justify-between sm:items-center ${result.success ? 'bg-green-50' : 'bg-red-50'} hover:bg-opacity-75 transition-colors duration-150`}>
-                        <span className="text-sm font-medium text-gray-900">{result.email}</span>
-                        <div className="flex items-center space-x-2 mt-1 sm:mt-0">
-                            <span className={`text-xs font-semibold px-2 py-1 rounded-full ${result.success ? 'bg-green-200 text-green-800' : 'bg-red-200 text-red-800'}`}>
-                                {result.success ? 'Thành công' : 'Thất bại'}
-                            </span>
-                            {!result.success && (
-                                <p className="text-xs text-red-700 max-w-xs text-right break-words">
-                                    {result.message}
-                                </p>
-                            )}
-                        </div>
-                    </li>
-                ))}
+              {results.map((result, index) => (
+                <li
+                  key={index}
+                  className={`p-3 flex flex-col sm:flex-row sm:justify-between sm:items-center ${result.success ? 'bg-green-50' : 'bg-red-50'} hover:bg-opacity-75 transition-colors duration-150`}
+                >
+                  <span className="text-sm font-medium text-gray-900">{result.email}</span>
+                  <div className="flex items-center space-x-2 mt-1 sm:mt-0">
+                    <span
+                      className={`text-xs font-semibold px-2 py-1 rounded-full ${result.success ? 'bg-green-200 text-green-800' : 'bg-red-200 text-red-800'}`}
+                    >
+                      {result.success ? 'Thành công' : 'Thất bại'}
+                    </span>
+                    {!result.success && (
+                      <p className="text-xs text-red-700 max-w-xs text-right break-words">{result.message}</p>
+                    )}
+                  </div>
+                </li>
+              ))}
             </ul>
           </div>
         </div>

@@ -187,7 +187,7 @@ const StudentManager: React.FC = () => {
       )}
 
       {/* Add the new StudentImporter component here */}
-      <StudentImporter />
+      <StudentImporter classes={classes} />
 
       <div className="mt-8"> {/* Add margin top for spacing */}
           <h4 className="text-xl font-bold text-gray-800 mb-4">Danh sách học viên hiện tại</h4>
