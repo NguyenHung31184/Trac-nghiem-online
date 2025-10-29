@@ -3,6 +3,13 @@ import * as admin from "firebase-admin";
 
 admin.initializeApp();
 
+const APP_REGION =
+  process.env.FUNCTIONS_REGION ||
+  (functions.config().app?.region as string | undefined) ||
+  "us-central1";
+
+const regionalFunctions = functions.region(APP_REGION);
+
 // Interface for student data from the client
 interface StudentData {
   email: string;
@@ -33,7 +40,7 @@ interface ProcessResult {
 
 const DEFAULT_STUDENT_PASSWORD = '123456';
 
-export const bulkCreateUsers = functions.region("us-central1").https.onCall(async (data, context) => {
+export const bulkCreateUsers = regionalFunctions.https.onCall(async (data, context) => {
   // 1. Authorization Check: Ensure the user is an admin
   if (!context.auth || context.auth.token.role !== 'admin') {
     throw new functions.https.HttpsError(
@@ -116,8 +123,7 @@ export const bulkCreateUsers = functions.region("us-central1").https.onCall(asyn
   return { results };
 });
 
-export const upsertStudentAccount = functions
-  .region("us-central1")
+export const upsertStudentAccount = regionalFunctions
   .https.onCall(async (data, context): Promise<UpsertStudentResult> => {
     if (!context.auth || context.auth.token.role !== 'admin') {
       throw new functions.https.HttpsError(
@@ -241,7 +247,7 @@ function shuffle<T>(array: T[]): T[] {
   return array;
 }
 
-export const generateExamVariantsHttps = functions.region("us-central1").https.onCall(async (data, context) => {
+export const generateExamVariantsHttps = regionalFunctions.https.onCall(async (data, context) => {
     const examId = data.examId as string;
     const db = admin.firestore();
     const logs: string[] = [];

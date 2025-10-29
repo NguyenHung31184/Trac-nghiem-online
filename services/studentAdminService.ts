@@ -1,5 +1,5 @@
-import { httpsCallable } from 'firebase/functions';
-import { functions } from './firebase';
++24-0
+import { callCallableWithFallbacks } from './firebaseFunctionsClient';
 
 export type UpsertStudentPayload = {
   email: string;
@@ -15,11 +15,11 @@ export type UpsertStudentResponse = {
   message: string;
 };
 
-const upsertCallable = httpsCallable(functions, 'upsertStudentAccount');
-
 export const upsertStudentAccount = async (
   payload: UpsertStudentPayload
 ): Promise<UpsertStudentResponse> => {
-  const response = await upsertCallable(payload);
-  return response.data as UpsertStudentResponse;
+  return callCallableWithFallbacks<UpsertStudentPayload, UpsertStudentResponse>(
+    'upsertStudentAccount',
+    payload
+  );
 };

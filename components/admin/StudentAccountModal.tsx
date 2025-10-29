@@ -1,3 +1,4 @@
++206-0
 import React, { useEffect, useMemo, useState } from 'react';
 import type { User } from '../../types';
 import { upsertStudentAccount } from '../../services/studentAdminService';
@@ -79,8 +80,11 @@ const StudentAccountModal: React.FC<StudentAccountModalProps> = ({
     } catch (err: any) {
       console.error('Failed to upsert student account', err);
       const fallbackMessage = err?.message || 'Không thể lưu tài khoản học viên. Vui lòng thử lại.';
+
       if (err?.code === 'functions/https-error' && err?.message) {
         setError(err.message);
+      } else if (err?.code === 'functions/internal') {
+        setError('Không thể kết nối tới Cloud Functions. Hãy chắc chắn đã triển khai hàm upsertStudentAccount và cấu hình VITE_FIREBASE_FUNCTIONS_REGION hoặc VITE_FIREBASE_FUNCTIONS_REGION_FALLBACKS cho đúng vùng của dự án.');
       } else {
         setError(fallbackMessage);
       }

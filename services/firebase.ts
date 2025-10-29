@@ -1,4 +1,3 @@
-
 // Import the functions you need from the SDKs you need
 import { initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
@@ -21,7 +20,17 @@ const firebaseConfig = {
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 
+export const firebaseApp = app;
+
 // Initialize and export Firebase services
 export const auth = getAuth(app);
 export const db = getFirestore(app);
-export const functions = getFunctions(app); // Initialize and export functions
+
+const functionsRegionOrCustomDomain =
+  import.meta.env.VITE_FIREBASE_FUNCTIONS_REGION ||
+  import.meta.env.VITE_FIREBASE_FUNCTIONS_CUSTOM_DOMAIN ||
+  undefined;
+
+export const functions = functionsRegionOrCustomDomain
+  ? getFunctions(app, functionsRegionOrCustomDomain)
+  : getFunctions(app); // Initialize and export functions

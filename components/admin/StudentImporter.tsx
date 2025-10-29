@@ -1,8 +1,7 @@
 import React, { useState } from 'react';
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
-import { httpsCallable } from 'firebase/functions';
-import { functions } from '../../services/firebase';
+import { callCallableWithFallbacks } from '../../services/firebaseFunctionsClient';
 import { CloudUploadIcon } from '../icons/CloudUploadIcon';
 import { LoadingSpinner } from '../icons/LoadingSpinner';
 
