@@ -208,8 +208,8 @@ export const getAdminDashboardData = (): Promise<AdminDashboardData> => {
     return gasApiRequest('getAdminDashboardData', 'GET');
 };
 
-export const addClass = (className: string): Promise<Class> => {
-    return gasApiRequest('addClass', 'POST', { className });
+export const addClass = (className: string, classCode?: string): Promise<Class> => {
+    return gasApiRequest('addClass', 'POST', { className, classCode });
 };
 
 export const updateClass = (classData: Class): Promise<void> => {

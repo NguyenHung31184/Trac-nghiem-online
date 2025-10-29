@@ -116,7 +116,12 @@ const SchedulingFormModal: React.FC<SchedulingFormModalProps> = ({ isOpen, onClo
                 <label htmlFor="classId" className={labelClasses}>Lớp học</label>
                 <div className="mt-1">
                     <select id="classId" name="classId" value={formData.classId} onChange={handleInputChange} className={inputClasses} required>
-                        {classes.map(cls => <option key={cls.id} value={cls.id}>{cls.name}</option>)}
+                    {classes.map(cls => (
+                          <option key={cls.id} value={cls.id}>
+                            {cls.name}
+                            {cls.code ? ` (${cls.code})` : ''}
+                          </option>
+                        ))}
                     </select>
                 </div>
             </div>

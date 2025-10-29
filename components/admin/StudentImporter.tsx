@@ -163,11 +163,11 @@ const StudentImporter: React.FC = () => {
     setError('');
 
     try {
-      // Gọi Cloud Function để tạo hàng loạt người dùng
-      const bulkCreateUsers = httpsCallable(functions, 'bulkCreateUsers');
-      const response = await bulkCreateUsers({ students });
-      const data = response.data as { results: ProcessResult[] };
-      setResults(data.results || []);
+      const response = await callCallableWithFallbacks<{ students: StudentData[] }, { results: ProcessResult[] }>(
+        'bulkCreateUsers',
+        { students }
+      );
+      setResults(response.results || []);
     } catch (err: any) {
       console.error("Lỗi khi gọi Cloud Function:", err);
       // Cải thiện thông báo lỗi cho người dùng
@@ -184,21 +184,21 @@ const StudentImporter: React.FC = () => {
       Chọn một file <strong>CSV</strong> hoặc <strong>Excel</strong> có chứa thông tin học sinh. File phải có các cột: <strong>email</strong>, <strong>fullName</strong>, và <strong>classId</strong>. Các biến thể tên cột như 'mail', 'name', 'hovaten', 'class', 'malop' cũng được hỗ trợ. Nếu không cung cấp cột <strong>password</strong>, hệ thống sẽ đặt mật khẩu mặc định là <strong>123456</strong>.
       </p>
 
-      <div className="grid sm:grid-cols-2 gap-4 mb-6">
-        <label className="flex flex-col items-center justify-center w-full min-h-[120px] px-4 py-6 bg-white text-blue-600 rounded-lg shadow-lg tracking-wide uppercase border-2 border-dashed border-blue-400 cursor-pointer hover:bg-blue-50 hover:text-blue-700 transition-all duration-200">
-          <CloudUploadIcon className="w-10 h-10 mb-2" />
-          <span className="mt-2 text-base leading-normal text-center font-medium">
-            {fileName || 'Chọn một file CSV hoặc Excel'}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
+        <label className="inline-flex w-full sm:w-auto cursor-pointer items-center justify-center gap-2 rounded-lg border-2 border-dashed border-blue-300 bg-white px-4 py-2 text-sm font-semibold text-blue-600 shadow-sm transition hover:border-blue-400 hover:bg-blue-50 hover:text-blue-700">
+          <CloudUploadIcon className="h-5 w-5" />
+          <span className="truncate">
+            {fileName || 'Chọn file CSV hoặc Excel'}
           </span>
           <input type='file' accept=".csv, .xlsx, .xls" className="hidden" onChange={handleFileChange} />
         </label>
         <button
           onClick={handleImport}
           disabled={students.length === 0 || isLoading}
-          className="flex items-center justify-center w-full min-h-[120px] px-6 py-3 text-white bg-green-600 rounded-lg shadow-lg hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-all duration-200 text-lg font-semibold"
+          className="inline-flex w-full sm:w-auto items-center justify-center rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-green-700 disabled:cursor-not-allowed disabled:bg-gray-400"
         >
-          {isLoading ? <LoadingSpinner className="w-6 h-6 mr-2 text-white" /> : null}
-          {isLoading ? 'Đang nhập...' : 'Bắt đầu Nhập'}
+          {isLoading ? <LoadingSpinner className="mr-2 h-4 w-4 text-white" /> : null}
+          {isLoading ? 'Đang nhập...' : 'Bắt đầu nhập'}
         </button>
       </div>
 

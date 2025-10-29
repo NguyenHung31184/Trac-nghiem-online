@@ -9,6 +9,7 @@ export interface User {
 export interface Class {
   id: string;
   name: string;
+  code?: string;
 }
 
 export interface Question {

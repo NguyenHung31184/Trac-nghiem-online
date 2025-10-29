@@ -12,14 +12,17 @@ interface ClassFormModalProps {
 
 const ClassFormModal: React.FC<ClassFormModalProps> = ({ isOpen, onClose, onSave, initialClass }) => {
   const [className, setClassName] = useState('');
+  const [classCode, setClassCode] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
 
   useEffect(() => {
     if (initialClass) {
       setClassName(initialClass.name);
+      setClassCode(initialClass.code ?? '');
     } else {
       setClassName('');
+      setClassCode('');
     }
     setError('');
   }, [initialClass, isOpen]);
@@ -30,14 +33,18 @@ const ClassFormModal: React.FC<ClassFormModalProps> = ({ isOpen, onClose, onSave
       setError('Tên lớp không được để trống.');
       return;
     }
+    if (!classCode.trim()) {
+      setError('Mã lớp không được để trống.');
+      return;
+    }
     setIsLoading(true);
     setError('');
 
     try {
       if (initialClass) {
-        await updateClass({ ...initialClass, name: className });
+        await updateClass({ ...initialClass, name: className.trim(), code: classCode.trim() });
       } else {
-        await addClass(className);
+        await addClass(className.trim(), classCode.trim());
       }
       onSave();
     } catch (err) {
@@ -73,6 +80,19 @@ const ClassFormModal: React.FC<ClassFormModalProps> = ({ isOpen, onClose, onSave
               required
               className="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
               placeholder="ví dụ: Lớp 12A1 - Khóa 2024"
+            />
+          </div>
+
+          <div>
+            <label htmlFor="classCode" className="block text-sm font-medium text-gray-700">Mã lớp</label>
+            <input
+              id="classCode"
+              type="text"
+              value={classCode}
+              onChange={(e) => setClassCode(e.target.value.toUpperCase())}
+              required
+              className="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 uppercase"
+              placeholder="ví dụ: LOP12A1"
             />
           </div>
 

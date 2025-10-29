@@ -38,7 +38,10 @@ const StudentAccountModal: React.FC<StudentAccountModalProps> = ({
     }
   }, [initialStudent, isOpen]);
 
-  const classIdSuggestions = useMemo(() => classes.map((cls) => `${cls.id} – ${cls.name}`), [classes]);
+  const classIdSuggestions = useMemo(
+    () => classes.map((cls) => `${cls.code ?? cls.id} – ${cls.name}`),
+    [classes]
+  );
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -161,7 +164,7 @@ const StudentAccountModal: React.FC<StudentAccountModalProps> = ({
                 value={classIdsInput}
                 onChange={(event) => setClassIdsInput(event.target.value)}
                 required
-                placeholder="VD: lop12a1, lop12a2"
+                placeholder="VD: LOP12A1, LOP12A2"
               />
               {classIdSuggestions.length > 0 && (
                 <p className="mt-1 text-xs text-gray-500">
