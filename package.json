@@ -10,7 +10,9 @@
   },
   "dependencies": {
     "@google/genai": "^1.25.0",
+    "@tailwindcss/postcss": "^4.1.16",
     "@types/sanitize-html": "^2.16.0",
+    "autoprefixer": "^10.4.21",
     "csv-parser": "^3.2.0",
     "firebase": "^12.4.0",
     "firebase-admin": "^13.5.0",
