@@ -8,7 +8,43 @@ const APP_REGION =
   (functions.config().app?.region as string | undefined) ||
   "us-central1";
 
-const regionalFunctions = functions.region(APP_REGION);
+const parseAdditionalRegions = (value: unknown): string[] => {
+  if (!value) {
+    return [];
+  }
+
+  if (Array.isArray(value)) {
+    return value
+      .map((entry) => (typeof entry === "string" ? entry.trim() : ""))
+      .filter((entry) => entry.length > 0);
+  }
+
+  if (typeof value === "string") {
+    return value
+      .split(",")
+      .map((entry) => entry.trim())
+      .filter((entry) => entry.length > 0);
+  }
+
+  return [];
+};
+
+const additionalRegions = [
+  ...parseAdditionalRegions(process.env.FUNCTIONS_ADDITIONAL_REGIONS),
+  ...parseAdditionalRegions(process.env.FUNCTIONS_REGION_FALLBACKS),
+  ...parseAdditionalRegions(functions.config().app?.additional_regions as string | undefined),
+];
+
+const configuredRegions = Array.from(
+  new Set([
+    APP_REGION,
+    ...additionalRegions,
+  ].filter((region) => typeof region === "string" && region.length > 0))
+);
+
+const regionalFunctions = configuredRegions.length > 0
+  ? functions.region(...configuredRegions)
+  : functions;
 
 // Interface for student data from the client
 interface StudentData {

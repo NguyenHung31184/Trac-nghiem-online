@@ -47,7 +47,7 @@ const App: React.FC = () => {
                         role: 'admin',
                     };
                 } else {
-                    // Nếu là học sinh, lấy thông tin hồ sơ từ backend (GAS)
+                    // Nếu là học sinh, lấy thông tin hồ sơ từ Firestore
                     const profile = await getUserProfile(firebaseUser.email!);
                     appUser = {
                         id: firebaseUser.uid,
@@ -114,10 +114,11 @@ const App: React.FC = () => {
             throw new Error("Không thể tải câu hỏi cho biến thể bài thi này. Vui lòng liên hệ quản trị viên.");
         }
 
+        const hydratedAttempt = { ...attempt, questions };
         setExamQuestions(questions);
         setSelectedExam(exam);
         setSelectedWindow(window);
-        setActiveAttempt(attempt);
+        setActiveAttempt(hydratedAttempt);
         setCurrentView('exam');
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);

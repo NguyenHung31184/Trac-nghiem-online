@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import type { Class, User } from '../../types';
+import type { User } from '../../types';
 import { upsertStudentAccount } from '../../services/studentAdminService';
 import { LoadingSpinner } from '../icons/LoadingSpinner';
 
@@ -7,7 +7,7 @@ interface StudentAccountModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: (message: string) => void;
-  classes: Class[];
+  classes: { id: string; name: string }[];
   initialStudent?: (User & { classIds?: string[] }) | null;
 }
 
@@ -27,22 +27,6 @@ const StudentAccountModal: React.FC<StudentAccountModalProps> = ({
 
   const isEditing = Boolean(initialStudent);
 
-  const classLookup = useMemo(() => {
-    const map = new Map<string, string>();
-    classes.forEach((cls) => {
-      const idKey = cls.id.trim().toLowerCase();
-      map.set(idKey, cls.id);
-
-      if (cls.code) {
-        map.set(cls.code.trim().toLowerCase(), cls.id);
-      }
-
-      const nameKey = cls.name.trim().toLowerCase();
-      map.set(nameKey, cls.id);
-    });
-    return map;
-  }, [classes]);
-
   useEffect(() => {
     if (isOpen) {
       setEmail(initialStudent?.email ?? '');
@@ -53,10 +37,7 @@ const StudentAccountModal: React.FC<StudentAccountModalProps> = ({
     }
   }, [initialStudent, isOpen]);
 
-  const classIdSuggestions = useMemo(
-    () => classes.map((cls) => `${cls.code ?? cls.id} – ${cls.name}`),
-    [classes]
-  );
+  const classIdSuggestions = useMemo(() => classes.map((cls) => `${cls.id} – ${cls.name}`), [classes]);
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -68,37 +49,8 @@ const StudentAccountModal: React.FC<StudentAccountModalProps> = ({
       .map((cls) => cls.trim())
       .filter(Boolean);
 
-    const resolvedClassIds: string[] = [];
-    const unmatchedLabels: string[] = [];
-
-    parsedClassIds.forEach((label) => {
-      const normalized = label.trim().toLowerCase();
-      const resolved = classLookup.get(normalized);
-      if (resolved) {
-        if (!resolvedClassIds.includes(resolved)) {
-          resolvedClassIds.push(resolved);
-        }
-      } else {
-        unmatchedLabels.push(label);
-      }
-    });
-
     if (!normalizedEmail || !normalizedName || parsedClassIds.length === 0) {
       setError('Vui lòng nhập đầy đủ Email, Họ tên và ít nhất một mã lớp.');
-      return;
-    }
-
-    if (resolvedClassIds.length === 0) {
-      setError(
-        unmatchedLabels.length > 0
-          ? `Không tìm thấy các lớp: ${unmatchedLabels.join(', ')}. Vui lòng kiểm tra lại.`
-          : 'Không thể xác định lớp học hợp lệ. Vui lòng kiểm tra lại mã lớp.'
-      );
-      return;
-    }
-
-    if (unmatchedLabels.length > 0) {
-      setError(`Không tìm thấy các lớp: ${unmatchedLabels.join(', ')}. Vui lòng kiểm tra lại.`);
       return;
     }
 
@@ -114,7 +66,7 @@ const StudentAccountModal: React.FC<StudentAccountModalProps> = ({
       const response = await upsertStudentAccount({
         email: normalizedEmail,
         fullName: normalizedName,
-        classIds: resolvedClassIds,
+        classIds: parsedClassIds,
         password: password.trim() ? password.trim() : undefined,
       });
 
@@ -208,7 +160,7 @@ const StudentAccountModal: React.FC<StudentAccountModalProps> = ({
                 value={classIdsInput}
                 onChange={(event) => setClassIdsInput(event.target.value)}
                 required
-                placeholder="VD: LOP12A1, LOP12A2"
+                placeholder="VD: lop12a1, lop12a2"
               />
               {classIdSuggestions.length > 0 && (
                 <p className="mt-1 text-xs text-gray-500">

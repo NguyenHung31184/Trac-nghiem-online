@@ -1,4 +1,3 @@
-+24-0
 import { callCallableWithFallbacks } from './firebaseFunctionsClient';
 
 export type UpsertStudentPayload = {

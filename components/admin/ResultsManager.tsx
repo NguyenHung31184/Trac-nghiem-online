@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import type { Attempt, AttemptWithDetails, User, Exam, Class } from '../../types';
+import type { AttemptWithDetails } from '../../types';
 import { getAllAttemptsFromFirestore, getAdminDashboardData } from '../../services/examService';
 import { LoadingSpinner } from '../icons/LoadingSpinner';
 import { EyeIcon } from '../icons/EyeIcon';
@@ -25,7 +25,7 @@ const ResultsManager: React.FC<ResultsManagerProps> = ({ onViewProctoringReport 
       setIsLoading(true);
       setError('');
       try {
-          // Lấy đồng thời dữ liệu "nóng" từ Firestore và "lạnh" từ GAS
+          // Lấy đồng thời dữ liệu kết quả và metadata từ Firestore
           const [firestoreAttempts, adminData] = await Promise.all([
               getAllAttemptsFromFirestore(),
               getAdminDashboardData() // Vẫn cần để lấy thông tin bổ sung

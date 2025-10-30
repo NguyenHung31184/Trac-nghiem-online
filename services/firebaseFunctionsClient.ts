@@ -1,4 +1,3 @@
-+132-0
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import type { Functions } from 'firebase/functions';
 import type { FirebaseError } from 'firebase/app';
@@ -9,19 +8,14 @@ type FunctionsCandidate = {
   client: Functions;
 };
 
-const DEFAULT_FALLBACK_REGIONS = ['asia-southeast1'];
+const DEFAULT_FALLBACK_REGIONS = [
+  'asia-southeast1',
+  'asia-east1',
+  'asia-northeast1',
+  'us-central1',
+];
 
-// The original implementation assumed that the project would always expose a
-// single callable endpoint. In reality we need to gracefully handle
-// combinations of custom domains, explicit regions and SDK defaults; otherwise
-// a typo or partial rollout strands the client on a broken endpoint. The
-// helpers below normalise each configuration knob into a deduplicated list of
-// `Functions` clients that we can iterate through until one responds.
-
-const configuredCustomDomainRaw = import.meta.env.VITE_FIREBASE_FUNCTIONS_CUSTOM_DOMAIN?.trim();
-const configuredCustomDomain = configuredCustomDomainRaw
-  ? configuredCustomDomainRaw.replace(/\/+$/, '')
-  : undefined;
+const configuredCustomDomain = import.meta.env.VITE_FIREBASE_FUNCTIONS_CUSTOM_DOMAIN?.trim();
 const configuredRegion = import.meta.env.VITE_FIREBASE_FUNCTIONS_REGION?.trim();
 
 const configuredFallbacks = (import.meta.env.VITE_FIREBASE_FUNCTIONS_REGION_FALLBACKS || '')
@@ -75,23 +69,13 @@ const RETRYABLE_CODES = new Set([
   'functions/unknown',
   'functions/not-found',
 ]);
-/**
- * Returns true when the caught Firebase error matches the class of failures we
- * observed in production: CORS rejections and region-specific 404s. Prior to
- * this fix we bailed out immediately, so the frontend surfaced the raw CORS
- * message. By treating those cases as retryable we can transparently fall back
- * to the next configured Functions client, which is particularly useful when a
- * custom domain has not yet deployed the callable.
- */
+
 const shouldRetryCallableError = (error: unknown): error is FirebaseError => {
   if (!error || typeof error !== 'object') {
     return false;
   }
 
-  const firebaseError = error as FirebaseError & {
-    cause?: unknown;
-    customData?: { httpStatus?: number };
-  };
+  const firebaseError = error as FirebaseError & { cause?: unknown };
   const code = typeof firebaseError.code === 'string' ? firebaseError.code : '';
 
   if (RETRYABLE_CODES.has(code)) {
@@ -100,20 +84,9 @@ const shouldRetryCallableError = (error: unknown): error is FirebaseError => {
 
   const message = typeof firebaseError.message === 'string' ? firebaseError.message : '';
   const lowerMessage = message.toLowerCase();
-  if (code === 'functions/https-error') {
-    const httpStatus = firebaseError.customData?.httpStatus;
-    if (typeof httpStatus === 'number' && (httpStatus === 404 || httpStatus === 0)) {
-      return true;
-    }
 
-    if (lowerMessage.includes('404') || lowerMessage.includes('not found')) {
-      return true;
-    }
-  }
   if (
     lowerMessage.includes('cors') ||
-    lowerMessage.includes('access-control-allow-origin') ||
-    lowerMessage.includes('preflight') ||
     lowerMessage.includes('networkerror') ||
     lowerMessage.includes('failed to fetch') ||
     lowerMessage.includes('fetch failed')
@@ -154,8 +127,8 @@ export async function callCallableWithFallbacks<TPayload, TResult>(
 
   if (lastError) {
     const appendedMessage = lastError.message
-      ? `${lastError.message} (Đã thử nhiều vùng triển khai Cloud Functions nhưng đều thất bại.)`
-      : 'Không thể kết nối tới Cloud Functions sau khi thử nhiều vùng triển khai.';
+      ? `${lastError.message} (Đã thử nhiều vùng triển khai Cloud Functions nhưng đều thất bại. Kiểm tra lại cấu hình vùng (VITE_FIREBASE_FUNCTIONS_REGION / VITE_FIREBASE_FUNCTIONS_REGION_FALLBACKS) và chắc chắn đã deploy Cloud Functions.)`
+      : 'Không thể kết nối tới Cloud Functions sau khi thử nhiều vùng triển khai. Vui lòng kiểm tra lại cấu hình vùng và trạng thái deploy của Functions.';
 
     throw new Error(appendedMessage);
   }

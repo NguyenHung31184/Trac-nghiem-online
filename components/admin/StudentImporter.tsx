@@ -2,7 +2,6 @@ import React, { useMemo, useState } from 'react';
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
 import { callCallableWithFallbacks } from '../../services/firebaseFunctionsClient';
-import type { Class } from '../../types';
 import { CloudUploadIcon } from '../icons/CloudUploadIcon';
 import { LoadingSpinner } from '../icons/LoadingSpinner';
 
@@ -18,9 +17,6 @@ interface ProcessResult {
   message: string;
 }
 
-interface StudentImporterProps {
-  classes: Class[];
-}
 
 const StudentImporter: React.FC<StudentImporterProps> = ({ classes }) => {
   const [students, setStudents] = useState<StudentData[]>([]);
@@ -28,8 +24,7 @@ const StudentImporter: React.FC<StudentImporterProps> = ({ classes }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [results, setResults] = useState<ProcessResult[]>([]);
   const [error, setError] = useState('');
-  const [warnings, setWarnings] = useState('');
-
+  
   const classLookup = useMemo(() => {
     const map = new Map<string, Class>();
 
@@ -243,15 +238,18 @@ const StudentImporter: React.FC<StudentImporterProps> = ({ classes }) => {
     }
     setIsLoading(true);
     setResults([]);
+    setError('');
 
     try {
-      const response = await callCallableWithFallbacks<{ students: StudentData[] }, { results: ProcessResult[] }>(
+      // Gọi Cloud Function để tạo hàng loạt người dùng
+      const data = await callCallableWithFallbacks<{ students: StudentRow[] }, { results: ProcessResult[] }>(
         'bulkCreateUsers',
         { students }
       );
-      setResults(response.results || []);
+      setResults(data.results || []);
     } catch (err: any) {
-      console.error('Lỗi khi gọi Cloud Function:', err);
+      console.error("Lỗi khi gọi Cloud Function:", err);
+      // Cải thiện thông báo lỗi cho người dùng
       setError(`Lỗi nghiêm trọng khi thực thi: ${err.message || 'Không thể kết nối đến máy chủ.'}`);
     } finally {
       setIsLoading(false);
@@ -262,13 +260,10 @@ const StudentImporter: React.FC<StudentImporterProps> = ({ classes }) => {
     <div className="bg-white p-6 rounded-lg shadow-md mt-4 max-w-4xl mx-auto">
       <h3 className="text-2xl font-bold mb-4 text-gray-800">Nhập Học sinh từ File</h3>
       <p className="mb-6 text-sm text-gray-600 leading-relaxed">
-        Chọn một file <strong>CSV</strong> hoặc <strong>Excel</strong> có chứa thông tin học sinh. File phải có các cột:
-        <strong> email</strong>, <strong>fullName</strong>, và <strong>classId</strong>. Các biến thể tên cột như 'mail', 'name',
-        'hovaten', 'class', 'malop' cũng được hỗ trợ. Nếu không cung cấp cột <strong>password</strong>, hệ thống sẽ đặt mật khẩu
-        mặc định là <strong>123456</strong>.
+      Chọn một file <strong>CSV</strong> hoặc <strong>Excel</strong> có chứa thông tin học sinh. File phải có các cột: <strong>email</strong>, <strong>fullName</strong>, và <strong>classId</strong>. Các biến thể tên cột như 'mail', 'name', 'hovaten', 'class', 'malop' cũng được hỗ trợ. Nếu không cung cấp cột <strong>password</strong>, hệ thống sẽ đặt mật khẩu mặc định là <strong>123456</strong>.
       </p>
 
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
+      <div className="grid sm:grid-cols-2 gap-4 mb-6">
         <label className="inline-flex w-full sm:w-auto cursor-pointer items-center justify-center gap-2 rounded-lg border-2 border-dashed border-blue-300 bg-white px-4 py-2 text-sm font-semibold text-blue-600 shadow-sm transition hover:border-blue-400 hover:bg-blue-50 hover:text-blue-700">
           <CloudUploadIcon className="h-5 w-5" />
           <span className="truncate">{fileName || 'Chọn file CSV hoặc Excel'}</span>
