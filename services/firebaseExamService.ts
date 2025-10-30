@@ -10,8 +10,8 @@ import {
   where,
   writeBatch
 } from 'firebase/firestore';
-import { getFunctions, httpsCallable } from 'firebase/functions';
 import type { Exam, ExamVariantSnapshot, Question } from '../types'; // Đảm bảo đã import ExamVariantSnapshot
+import { callCallableWithFallbacks } from './firebaseFunctionsClient';
 
 /**
  * Fetches all questions from the question bank.
@@ -33,13 +33,12 @@ export const getQuestions = async (): Promise<Question[]> => {
  * This is the NEW client-side function that triggers the server-side Cloud Function.
  */
 export async function generateExamVariants(examId: string): Promise<{ success: boolean; message: string; logs?: string[] }> {
-  const functions = getFunctions();
-  const generateVariantsCallable = httpsCallable(functions, 'generateExamVariantsHttps');
-
   try {
     console.log(`Calling cloud function 'generateExamVariantsHttps' with examId: ${examId}`);
-    const result = await generateVariantsCallable({ examId });
-    const data = result.data as { success: boolean; message: string; logs?: string[] };
+    const data = await callCallableWithFallbacks<{ examId: string }, { success: boolean; message: string; logs?: string[] }>(
+      'generateExamVariantsHttps',
+      { examId }
+    );
     console.log('Cloud function returned:', data);
     return data;
   } catch (error: any) {

@@ -1,8 +1,7 @@
 import React, { useState } from 'react';
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
-import { httpsCallable } from 'firebase/functions';
-import { functions } from '../../services/firebase';
+import { callCallableWithFallbacks } from '../../services/firebaseFunctionsClient';
 import { CloudUploadIcon } from '../icons/CloudUploadIcon';
 import { LoadingSpinner } from '../icons/LoadingSpinner';
 
@@ -165,9 +164,10 @@ const StudentImporter: React.FC = () => {
 
     try {
       // Gọi Cloud Function để tạo hàng loạt người dùng
-      const bulkCreateUsers = httpsCallable(functions, 'bulkCreateUsers');
-      const response = await bulkCreateUsers({ students });
-      const data = response.data as { results: ProcessResult[] };
+      const data = await callCallableWithFallbacks<{ students: StudentRow[] }, { results: ProcessResult[] }>(
+        'bulkCreateUsers',
+        { students }
+      );
       setResults(data.results || []);
     } catch (err: any) {
       console.error("Lỗi khi gọi Cloud Function:", err);
@@ -182,7 +182,7 @@ const StudentImporter: React.FC = () => {
     <div className="bg-white p-6 rounded-lg shadow-md mt-4 max-w-4xl mx-auto">
       <h3 className="text-2xl font-bold mb-4 text-gray-800">Nhập Học sinh từ File</h3>
       <p className="mb-6 text-sm text-gray-600 leading-relaxed">
-        Chọn một file <strong>CSV</strong> hoặc <strong>Excel</strong> có chứa thông tin học sinh. File phải có các cột: <strong>email</strong>, <strong>fullName</strong>, và <strong>classId</strong>. Các biến thể tên cột như 'mail', 'name', 'hovaten', 'class', 'malop' cũng được hỗ trợ. Mật khẩu mặc định sẽ được tạo tự động và giống với email của học sinh.
+        Chọn một file <strong>CSV</strong> hoặc <strong>Excel</strong> có chứa thông tin học sinh. File phải có các cột: <strong>email</strong>, <strong>fullName</strong>, và <strong>classId</strong>. Các biến thể tên cột như 'mail', 'name', 'hovaten', 'class', 'malop' cũng được hỗ trợ. Nếu không cung cấp cột <strong>password</strong>, hệ thống sẽ đặt mật khẩu mặc định là <strong>123456</strong>.
       </p>
 
       <div className="grid sm:grid-cols-2 gap-4 mb-6">

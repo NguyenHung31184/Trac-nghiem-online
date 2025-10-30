@@ -10,6 +10,7 @@ import ClassFormModal from './ClassFormModal';
 import Pagination from './Pagination';
 import ConfirmationModal from './ConfirmationModal';
 import StudentImporter from './StudentImporter'; // Import the new component
+import StudentAccountModal from './StudentAccountModal';
 
 const ITEMS_PER_PAGE = 10;
 
@@ -32,6 +33,10 @@ const StudentManager: React.FC = () => {
   const [confirmAction, setConfirmAction] = useState<(() => void) | null>(null);
   const [confirmTitle, setConfirmTitle] = useState('');
   const [confirmMessage, setConfirmMessage] = useState('');
+
+  const [isStudentModalOpen, setIsStudentModalOpen] = useState(false);
+  const [editingStudent, setEditingStudent] = useState<(User & { classIds?: string[] }) | null>(null);
+  const [successMessage, setSuccessMessage] = useState('');
 
   const fetchData = useCallback(async () => {
     setIsLoading(true);
@@ -72,6 +77,21 @@ const StudentManager: React.FC = () => {
   const handleAddNewClass = () => {
     setEditingClass(null);
     setIsClassModalOpen(true);
+  };
+
+  const handleOpenStudentModal = (student: (User & { classIds?: string[] }) | null = null) => {
+    setEditingStudent(student);
+    setIsStudentModalOpen(true);
+  };
+
+  const handleStudentModalClose = () => {
+    setIsStudentModalOpen(false);
+    setEditingStudent(null);
+  };
+
+  const handleStudentSaved = (message: string) => {
+    setSuccessMessage(message);
+    fetchData();
   };
 
   const handleEditClass = (cls: Class) => {
@@ -122,6 +142,16 @@ const StudentManager: React.FC = () => {
 
   return (
     <div className="space-y-12">
+      {isStudentModalOpen && (
+        <StudentAccountModal
+          isOpen={isStudentModalOpen}
+          onClose={handleStudentModalClose}
+          onSuccess={handleStudentSaved}
+          classes={classes}
+          initialStudent={editingStudent}
+        />
+      )}
+
       {isClassModalOpen && (
         <ClassFormModal
           isOpen={isClassModalOpen}
@@ -143,12 +173,34 @@ const StudentManager: React.FC = () => {
       <div>
         <div className="flex justify-between items-center mb-4">
           <h3 className="text-2xl font-bold text-gray-900">Quản lý học viên</h3>
-          <button className="bg-white hover:bg-gray-50 text-gray-700 border border-gray-300 font-semibold py-2 px-4 rounded-lg text-sm">Xuất CSV</button>
+          <div className="flex items-center space-x-3">
+            <button
+              onClick={() => handleOpenStudentModal(null)}
+              className="flex items-center space-x-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700"
+            >
+              <PlusCircleIcon />
+              <span>Thêm học viên</span>
+            </button>
+            <button className="bg-white hover:bg-gray-50 text-gray-700 border border-gray-300 font-semibold py-2 px-4 rounded-lg text-sm">Xuất CSV</button>
+          </div>
         </div>
-        
+
+        {successMessage && (
+          <div className="mb-6 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800 shadow-sm">
+            {successMessage}
+            <button
+              type="button"
+              onClick={() => setSuccessMessage('')}
+              className="ml-4 text-xs font-semibold text-emerald-700 underline"
+            >
+              Ẩn
+            </button>
+          </div>
+        )}
+
         {/* Add the new StudentImporter component here */}
         <StudentImporter />
-        
+
         <div className="mt-8"> {/* Add margin top for spacing */}
             <h4 className="text-xl font-bold text-gray-800 mb-4">Danh sách học viên hiện tại</h4>
             {/* Desktop Table View */}
@@ -159,6 +211,7 @@ const StudentManager: React.FC = () => {
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Họ và tên</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Lớp</th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Thao tác</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
@@ -168,9 +221,21 @@ const StudentManager: React.FC = () => {
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{student.email}</td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
                         {(student.classIds && student.classIds.length > 0)
-                            ? student.classIds.map(id => classMap.get(id) || id).join(', ') 
+                            ? student.classIds.map(id => classMap.get(id) || id).join(', ')
                             : 'N/A'
                         }
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
+                        <div className="flex justify-end space-x-2">
+                          <button
+                            type="button"
+                            onClick={() => handleOpenStudentModal(student)}
+                            className="flex items-center space-x-1 rounded-lg border border-gray-300 px-3 py-1 text-gray-700 transition hover:bg-gray-100"
+                          >
+                            <PencilIcon />
+                            <span>Sửa / đổi mật khẩu</span>
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -190,10 +255,18 @@ const StudentManager: React.FC = () => {
                             <span className="text-gray-500 col-span-1">Lớp:</span>
                             <span className="text-gray-800 font-medium col-span-2">
                                {(student.classIds && student.classIds.length > 0)
-                                    ? student.classIds.map(id => classMap.get(id) || id).join(', ') 
+                                    ? student.classIds.map(id => classMap.get(id) || id).join(', ')
                                     : 'N/A'
                                }
                             </span>
+                            <span className="text-gray-500 col-span-1">Thao tác:</span>
+                            <button
+                              type="button"
+                              onClick={() => handleOpenStudentModal(student)}
+                              className="col-span-2 rounded-lg border border-gray-300 px-3 py-1 text-left font-semibold text-indigo-600 transition hover:bg-indigo-50"
+                            >
+                              Chỉnh sửa / đặt mật khẩu
+                            </button>
                           </div>
                         </div>
                     </div>

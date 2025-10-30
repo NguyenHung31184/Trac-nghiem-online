@@ -2,7 +2,9 @@ export interface User {
   id: string;
   name: string;
   email: string;
-  roles: string[]; // ví dụ: ['admin', 'teacher', 'student']
+  roles?: string[]; // ví dụ: ['admin', 'teacher', 'student']
+  role?: string; // Một số luồng vẫn sử dụng khóa đơn lẻ
+  classIds?: string[];
 }
 
 export interface Class {
@@ -81,4 +83,18 @@ export interface Attempt {
 export interface AuditLog {
   id:string;
   // Thêm các thuộc tính khác của AuditLog nếu cần
+}
+
+export interface QuestionWithExamDetails extends Question {
+  examId?: string;
+  examTitle?: string;
+}
+
+export interface AttemptWithDetails extends Attempt {
+  exam?: Exam;
+  user?: Pick<User, 'id' | 'name' | 'email'>;
+  window?: ExamWindow;
+  userName?: string;
+  examTitle?: string;
+  className?: string;
 }

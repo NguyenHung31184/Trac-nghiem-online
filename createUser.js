@@ -24,12 +24,14 @@ try {
 const db = admin.firestore();
 const auth = admin.auth();
 
+const DEFAULT_PASSWORD = '123456';
+
 // =========================================================================================
 // !!! QUAN TRỌNG: BƯỚC 2 - CHUẨN BỊ DỮ LIỆU
 // 1. Đổi tên file "students_example.csv" thành "students.csv".
 // 2. Mở file "students.csv" và điền dữ liệu học sinh của bạn.
 // 3. Các cột cần thiết: email, fullName, classId.
-// 4. Cột "password" CHỈ CẦN THIẾT cho những người dùng MỚI chưa có tài khoản.
+// 4. Cột "password" là tùy chọn; nếu bỏ trống, mật khẩu mặc định sẽ là "123456".
 // =========================================================================================
 const filePath = './students.csv';
 
@@ -60,16 +62,24 @@ fs.createReadStream(filePath)
         try {
             userRecord = await auth.getUserByEmail(email);
             console.log(`[Auth] ✔ Người dùng ${email} đã tồn tại.`);
+
+            if (password) {
+                await auth.updateUser(userRecord.uid, {
+                    password,
+                    displayName: fullName
+                });
+                console.log(`[Auth] 🔁 Đã cập nhật mật khẩu cho người dùng: ${email}`);
+            }
         } catch (error) {
             // Nếu người dùng không được tìm thấy, hãy tạo một người dùng mới
             if (error.code === 'auth/user-not-found') {
                 console.log(`[Auth] ⚠ Người dùng ${email} chưa tồn tại. Đang tiến hành tạo...`);
-                if (!password) {
-                    console.error(`[Lỗi] ❌ Bỏ qua người dùng mới ${email} do thiếu mật khẩu trong file CSV.`);
-                    return;
-                }
-                userRecord = await auth.createUser({ email, password, displayName: fullName });
+                const initialPassword = password || DEFAULT_PASSWORD;
+                userRecord = await auth.createUser({ email, password: initialPassword, displayName: fullName });
                 console.log(`[Auth] ✔ Tạo tài khoản mới thành công cho: ${email}`);
+                if (!password) {
+                    console.log(`[Auth] 🔐 Đã sử dụng mật khẩu mặc định cho ${email}: ${DEFAULT_PASSWORD}`);
+                }
             } else {
                 throw error; // Gửi lại các lỗi xác thực khác
             }

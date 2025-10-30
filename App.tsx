@@ -46,7 +46,7 @@ const App: React.FC = () => {
                         role: 'admin',
                     };
                 } else {
-                    // Nếu là học sinh, lấy thông tin hồ sơ từ backend (GAS)
+                    // Nếu là học sinh, lấy thông tin hồ sơ từ Firestore
                     const profile = await getUserProfile(firebaseUser.email!);
                     appUser = {
                         id: firebaseUser.uid,
@@ -97,20 +97,27 @@ const App: React.FC = () => {
         }
         
         const variantData = await getExamVariantForStudent(exam.id, user.email);
-        if (!variantData || !variantData.url) {
+        if (!variantData) {
             throw new Error("Không thể lấy được biến thể đề thi. Vui lòng liên hệ quản trị viên.");
         }
-        
-        // Bước 2: Tải câu hỏi từ URL biến thể đã nhận được
-        const questions = await fetchQuestionsFromSnapshot(variantData.url);
-        if (questions.length === 0) {
-            throw new Error("Không thể tải câu hỏi từ URL được cung cấp. File có thể trống hoặc không hợp lệ.");
+
+        let questions: Question[] = [];
+        if (variantData.questions && variantData.questions.length > 0) {
+            questions = variantData.questions;
+        } else if (variantData.url) {
+            // Giữ tương thích ngược với kiến trúc cũ khi URL JSON vẫn được sử dụng
+            questions = await fetchQuestionsFromSnapshot(variantData.url);
         }
 
+        if (!questions || questions.length === 0) {
+            throw new Error("Không thể tải câu hỏi cho biến thể bài thi này. Vui lòng liên hệ quản trị viên.");
+        }
+
+        const hydratedAttempt = { ...attempt, questions };
         setExamQuestions(questions);
         setSelectedExam(exam);
         setSelectedWindow(window);
-        setActiveAttempt(attempt);
+        setActiveAttempt(hydratedAttempt);
         setCurrentView('exam');
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);

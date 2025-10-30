@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import type { User, Exam, Attempt, ExamWindow } from '../types';
-import { getAvailableWindowsForUser } from '../services/examService';
+import { createAttempt, getAvailableWindowsForUser } from '../services/examService';
 import { LoadingSpinner } from './icons/LoadingSpinner';
 import { BookOpenIcon } from './icons/BookOpenIcon';
 import { ClockIcon } from './icons/ClockIcon';
@@ -21,6 +21,16 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onStartExam, globalError, c
   const [accessCode, setAccessCode] = useState<{ [windowId: string]: string }>({});
   const [error, setError] = useState<{ [windowId: string]: string }>({});
   const [fetchError, setFetchError] = useState<string>('');
+
+  const isExamReady = useCallback((exam: Exam) => {
+    if (!exam) {
+      return false;
+    }
+    if (Array.isArray(exam.snapshotVariantIds) && exam.snapshotVariantIds.length > 0) {
+      return true;
+    }
+    return Boolean(exam.questionsSnapshotUrl);
+  }, []);
 
   const fetchWindows = useCallback(async () => {
     setIsLoading(true);
@@ -63,8 +73,8 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onStartExam, globalError, c
       return;
     }
 
-    if (!window.exam.questionsSnapshotUrl) {
-      setError(prev => ({ ...prev, [window.id]: 'Bài thi này chưa sẵn sàng.' }));
+    if (!isExamReady(window.exam)) {
+      setError(prev => ({ ...prev, [window.id]: 'Bài thi này chưa sẵn sàng. Vui lòng liên hệ quản trị viên để đồng bộ biến thể.' }));
       return;
     }
 
@@ -76,18 +86,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onStartExam, globalError, c
 
     setStartingWindowId(window.id);
     try {
-      const newAttempt: Attempt = {
-        id: `local_atm_${Date.now()}`,
-        userId: user.id,
-        examId: window.examId,
-        windowId: window.id,
-        status: 'in-progress',
-        answers: {},
-        score: null,
-        started_at: Date.now(),
-        completed_at: null,
-        reviewRequested: false
-      };
+      const newAttempt = await createAttempt(user.id, window.examId, window.id);
       onStartExam(window.exam, window, newAttempt);
     } catch (err) {
       console.error('Failed to create attempt:', err);
