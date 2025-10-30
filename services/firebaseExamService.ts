@@ -119,4 +119,34 @@ export const getExamVariantSnapshots = async (examId: string): Promise<ExamVaria
   return snapshot.docs
     .map(docSnap => ({ id: docSnap.id, ...(docSnap.data() as Omit<ExamVariantSnapshot, 'id'>) }))
     .sort((a, b) => (a.variant || 0) - (b.variant || 0)); // Sắp xếp theo thuộc tính 'variant'
-};
+  };
+
+  const VARIANT_HASH_SEED = 0x811c9dc5;
+  
+  function computeDeterministicHash(input: string): number {
+    let hash = VARIANT_HASH_SEED;
+    for (let i = 0; i < input.length; i += 1) {
+      hash ^= input.charCodeAt(i);
+      hash = (hash * 16777619) >>> 0; // FNV-1a 32-bit
+    }
+    return hash >>> 0;
+  }
+  
+  export async function getExamVariantSnapshotForStudent(
+    examId: string,
+    studentEmail: string,
+  ): Promise<ExamVariantSnapshot | null> {
+    const normalizedEmail = studentEmail.trim().toLowerCase();
+    if (!examId || !normalizedEmail) {
+      throw new Error('Thiếu thông tin bài thi hoặc email học viên.');
+    }
+  
+    const snapshots = await getExamVariantSnapshots(examId);
+    if (snapshots.length === 0) {
+      return null;
+    }
+  
+    const hash = computeDeterministicHash(`${examId}|${normalizedEmail}`);
+    const index = hash % snapshots.length;
+    return snapshots[index];
+  }

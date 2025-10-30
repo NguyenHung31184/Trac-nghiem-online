@@ -63,11 +63,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onStartExam, globalError, c
       return;
     }
 
-    if (!window.exam.questionsSnapshotUrl) {
-      setError(prev => ({ ...prev, [window.id]: 'Bài thi này chưa sẵn sàng.' }));
-      return;
-    }
-
+    
     const status = getWindowStatus(window.start_at, window.end_at);
     if (status.state !== 'active') {
       setError(prev => ({ ...prev, [window.id]: status.message }));

@@ -8,7 +8,8 @@ import ResultsPage from './components/ResultsPage';
 import Header from './components/Header';
 import { LoadingSpinner } from './components/icons/LoadingSpinner';
 import ProctoringReport from './components/admin/ProctoringReport';
-import { fetchQuestionsFromSnapshot, getUserProfile, getExamVariantForStudent } from './services/examService';
+import { getUserProfile } from './services/examService';
+import { getExamVariantSnapshotForStudent } from './services/firebaseExamService';
 import { auth } from './services/firebase';
 import { onAuthStateChanged } from "firebase/auth";
 
@@ -97,14 +98,20 @@ const App: React.FC = () => {
         }
         
         const variantData = await getExamVariantForStudent(exam.id, user.email);
-        if (!variantData || !variantData.url) {
+        if (!variantData) {
             throw new Error("Không thể lấy được biến thể đề thi. Vui lòng liên hệ quản trị viên.");
         }
-        
-        // Bước 2: Tải câu hỏi từ URL biến thể đã nhận được
-        const questions = await fetchQuestionsFromSnapshot(variantData.url);
-        if (questions.length === 0) {
-            throw new Error("Không thể tải câu hỏi từ URL được cung cấp. File có thể trống hoặc không hợp lệ.");
+
+        let questions: Question[] = [];
+        if (variantData.questions && variantData.questions.length > 0) {
+            questions = variantData.questions;
+        } else if (variantData.url) {
+            // Giữ tương thích ngược với kiến trúc cũ khi URL JSON vẫn được sử dụng
+            questions = await fetchQuestionsFromSnapshot(variantData.url);
+        }
+
+        if (!questions || questions.length === 0) {
+            throw new Error("Không thể tải câu hỏi cho biến thể bài thi này. Vui lòng liên hệ quản trị viên.");
         }
 
         setExamQuestions(questions);

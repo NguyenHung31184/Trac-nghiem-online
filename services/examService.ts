@@ -74,26 +74,6 @@ async function gasApiRequest<T>(action: string, method: 'GET' | 'POST' = 'GET', 
 // ======================== TẢI DỮ LIỆU TĨNH "HOT PATH" ============================
 // =================================================================================
 
-export const fetchQuestionsFromSnapshot = async (url: string): Promise<Question[]> => {
-    if (!url) {
-        console.error("fetchQuestionsFromSnapshot called with no URL.");
-        return [];
-    }
-    try {
-        // GAS Drive URLs need a little tweak to be direct download links
-        const downloadUrl = url.replace('/view?usp=drivesdk', '&export=download');
-        const response = await fetch(downloadUrl);
-        if (!response.ok) {
-            throw new Error(`Network response was not ok: ${response.statusText}`);
-        }
-        const snapshotData: { questions?: Question[] } = await response.json();
-        return snapshotData.questions || [];
-    } catch (error) {
-        console.error("Failed to fetch or parse question snapshot:", error);
-        // Ném lại lỗi để UI có thể xử lý
-        throw new Error(`Không thể tải hoặc phân tích file câu hỏi từ URL: ${url}. Lỗi gốc: ${error instanceof Error ? error.message : String(error)}`);
-    }
-};
 
 // =================================================================================
 // ========================== FIREBASE "HOT PATH" FUNCTIONS ========================
@@ -181,17 +161,6 @@ export const getUserProfile = (email: string): Promise<UserProfile> => {
 export const getAvailableWindowsForUser = (user: User): Promise<(ExamWindow & {exam: Exam})[]> => {
     return gasApiRequest('getAvailableWindowsForUser', 'GET', { email: user.email });
 };
-
-export type ExamVariant = {
-  examId: string;
-  variant: number;
-  url: string;
-}
-
-export const getExamVariantForStudent = (examId: string, studentEmail: string): Promise<ExamVariant> => {
-    return gasApiRequest('getExamVariantForStudent', 'POST', { examId, studentEmail });
-};
-
 
 // --- Các hàm cho Admin ---
 
@@ -285,16 +254,4 @@ export const getAttemptAuditLogs = async (attemptId: string): Promise<AuditLog[]
         } as AuditLog);
     });
     return logs;
-};
-
-// Hàm mới để kích hoạt đồng bộ từ frontend
-export type SyncResult = {
-    successes: { examId: string; examTitle: string; totalQuestions: number }[];
-    failures: { examId: string; examTitle: string; error: string }[];
-}
-export const runSyncAndCreateSnapshots = (): Promise<{
-  successes: { examId: string; examTitle: string; snapshotUrl: string; totalQuestions: number }[],
-  failures: { examId: string; examTitle: string; error: string }[]
-}> => {
-  return gasApiRequest('syncAndCreateSnapshots', 'POST', { numVariants: 10 });
 };
